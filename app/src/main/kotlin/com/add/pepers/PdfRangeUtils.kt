@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,7 +47,7 @@ internal fun PdfReportRangeDialog(
     bundle: MonthBundle,
     database: Database,
     onDismiss: () -> Unit,
-    onPrint: (PdfReportRange, String?, Long) -> Unit
+    onPrint: (PdfReportRange, String?, Long, Boolean) -> Unit
 ) {
     var range by remember { mutableStateOf(PdfReportRange.MONTH) }
     val activeDates = remember(bundle, mode) {
@@ -134,12 +136,25 @@ internal fun PdfReportRangeDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = { onPrint(range, selectedDate, bundle.month.id) },
-                enabled = range != PdfReportRange.DAY || selectedDate != null,
-                colors = ButtonDefaults.buttonColors(containerColor = Purple)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("طباعة PDF")
+                Button(
+                    onClick = { onPrint(range, selectedDate, bundle.month.id, false) },
+                    enabled = range != PdfReportRange.DAY || selectedDate != null,
+                    colors = ButtonDefaults.buttonColors(containerColor = Purple),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("طباعة PDF", fontSize = 11.sp)
+                }
+                OutlinedButton(
+                    onClick = { onPrint(range, selectedDate, bundle.month.id, true) },
+                    enabled = range != PdfReportRange.DAY || selectedDate != null,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("مشاركة PDF", fontSize = 11.sp)
+                }
             }
         },
         dismissButton = {
@@ -178,7 +193,8 @@ internal fun printNumericReportRange(
     userPhone: String,
     userEmail: String,
     userShop: String,
-    userImagePath: String
+    userImagePath: String,
+    sharePdf: Boolean = false
 ) {
     val sourceBundles = bundles
         .filter { it.month.shopId == bundles.firstOrNull()?.month?.shopId }
@@ -206,7 +222,8 @@ internal fun printNumericReportRange(
                     userPhone,
                     userEmail,
                     userShop,
-                    userImagePath
+                    userImagePath,
+                    sharePdf = sharePdf
                 )
             } else {
                 Toast.makeText(context, "اليوم المحدد لا يحتوي على تسجيل عددي", Toast.LENGTH_SHORT).show()
@@ -229,7 +246,8 @@ internal fun printNumericReportRange(
                     userPhone,
                     userEmail,
                     userShop,
-                    userImagePath
+                    userImagePath,
+                    sharePdf = sharePdf
                 )
             }
         }
@@ -263,7 +281,8 @@ internal fun printNumericReportRange(
                     userPhone,
                     userEmail,
                     userShop,
-                    userImagePath
+                    userImagePath,
+                    sharePdf = sharePdf
                 )
             }
         }
@@ -282,7 +301,8 @@ internal fun printIndividualReportRange(
     userPhone: String,
     userEmail: String,
     userShop: String,
-    userImagePath: String
+    userImagePath: String,
+    sharePdf: Boolean = false
 ) {
     val sourceBundles = bundles
         .filter { it.month.shopId == bundles.firstOrNull()?.month?.shopId }
@@ -342,7 +362,8 @@ internal fun printIndividualReportRange(
                     userPhone,
                     userEmail,
                     userShop,
-                    userImagePath
+                    userImagePath,
+                    sharePdf = sharePdf
                 )
             }
         }
@@ -379,7 +400,8 @@ internal fun printIndividualReportRange(
                     userPhone,
                     userEmail,
                     userShop,
-                    userImagePath
+                    userImagePath,
+                    sharePdf = sharePdf
                 )
             }
         }
