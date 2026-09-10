@@ -966,7 +966,7 @@ fun WorkLogSheet() {
             bundle = currentBundle,
             database = database,
             onDismiss = { showPdfRangeDialog = false },
-            onPrint = { range, selectedDate, selectedMonthId ->
+            onPrint = { range, selectedDate, selectedMonthId, sharePdf ->
                 showPdfRangeDialog = false
                 val allBundles = months.mapNotNull { database.loadMonthBundle(it.id) }
                 if (registrationMode == RegistrationMode.NUMERIC) {
