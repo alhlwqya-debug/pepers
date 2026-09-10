@@ -23,7 +23,9 @@ internal fun generatePdf(
     userPhone: String,
     userEmail: String,
     userShop: String,
-    userImagePath: String
+    userImagePath: String,
+    shopRegistrationNumber: String = "",
+    sharePdf: Boolean = false
 ) {
     try {
         val totalEarned = database.calculateMonthEarned(bundle)
@@ -31,6 +33,9 @@ internal fun generatePdf(
         val net = database.calculateMonthNet(bundle)
         val totalPieces = bundle.days.sumOf { it.quantities.values.sum() }
         val pieces = database.getPieces(bundle.month.shopId)
+        val resolvedShopNumber = shopRegistrationNumber.ifBlank {
+            database.getShops().firstOrNull { it.id == bundle.month.shopId }?.registrationNumber.orEmpty()
+        }
 
         val activeDays = bundle.days.count { day ->
             day.quantities.values.sum() > 0 || day.expense > 0
@@ -155,6 +160,7 @@ table.data tbody tr:nth-child(even) { background: #fafafa; }
             if (userPhone.isNotBlank()) append("<div class='profile-line'>📱 ${escapeHtml(userPhone)}</div>")
             if (userEmail.isNotBlank()) append("<div class='profile-line'>📧 ${escapeHtml(userEmail)}</div>")
             if (userShop.isNotBlank()) append("<div class='profile-line'>🏪 ${escapeHtml(userShop)}</div>")
+            if (resolvedShopNumber.isNotBlank()) append("<div class='profile-line'>🔢 رقم المحل: ${escapeHtml(resolvedShopNumber)}</div>")
             append("<div class='clear'></div></div>")
             append("</div>")
 
@@ -235,23 +241,30 @@ table.data tbody tr:nth-child(even) { background: #fafafa; }
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
+                val jobName = "دفتر_${bundle.month.name}"
                 try {
-                    val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
-                    val adapter: PrintDocumentAdapter = webView.createPrintDocumentAdapter("دفتر_${bundle.month.name}")
-                    printManager.print(
-                        "دفتر_${bundle.month.name}",
-                        adapter,
-                        PrintAttributes.Builder()
-                            .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
-                            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-                            .build()
-                    )
+                    if (sharePdf) {
+                        shareWebViewAsPdf(context, webView, jobName, userPhone, userEmail) {
+                            decorView?.post { try { decorView.removeView(webView) } catch (_: Exception) { } }
+                        }
+                    } else {
+                        val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
+                        val adapter: PrintDocumentAdapter = webView.createPrintDocumentAdapter(jobName)
+                        printManager.print(
+                            jobName,
+                            adapter,
+                            PrintAttributes.Builder()
+                                .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                                .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                                .build()
+                        )
+                        decorView?.postDelayed({
+                            try { decorView.removeView(webView) } catch (_: Exception) { }
+                        }, 500L)
+                    }
                 } catch (e: Exception) {
                     Toast.makeText(context, "تعذر إنشاء ملف PDF: ${e.message ?: "خطأ غير معروف"}", Toast.LENGTH_LONG).show()
-                } finally {
-                    decorView?.postDelayed({
-                        try { decorView.removeView(webView) } catch (_: Exception) { }
-                    }, 500L)
+                    try { decorView?.removeView(webView) } catch (_: Exception) { }
                 }
             }
         }
@@ -271,7 +284,9 @@ internal fun generateIndividualPdf(
     userPhone: String,
     userEmail: String,
     userShop: String,
-    userImagePath: String
+    userImagePath: String,
+    shopRegistrationNumber: String = "",
+    sharePdf: Boolean = false
 ) {
     try {
         fun amount(value: Int): String = String.format(java.util.Locale.US, "%,d", value)
@@ -293,6 +308,9 @@ internal fun generateIndividualPdf(
         val profileImageHtml = buildProfileImageHtml(userImagePath)
         val shopName = userShop.ifBlank {
             database.getShops().firstOrNull { it.id == bundle.month.shopId }?.name.orEmpty()
+        }
+        val resolvedShopNumber = shopRegistrationNumber.ifBlank {
+            database.getShops().firstOrNull { it.id == bundle.month.shopId }?.registrationNumber.orEmpty()
         }
 
         val html = buildString {
@@ -379,6 +397,7 @@ table.data tr:nth-child(even) td { background: #fafafa; }
             if (userPhone.isNotBlank()) append("<div class='profile-line'>الهاتف: ${escapeHtml(userPhone)}</div>")
             if (userEmail.isNotBlank()) append("<div class='profile-line'>البريد: ${escapeHtml(userEmail)}</div>")
             if (shopName.isNotBlank()) append("<div class='profile-line'>المحل: ${escapeHtml(shopName)}</div>")
+            if (resolvedShopNumber.isNotBlank()) append("<div class='profile-line'>رقم المحل: ${escapeHtml(resolvedShopNumber)}</div>")
             append("<div class='clear'></div></div></div>")
 
             append("<table class='cards'><tr>")
@@ -451,27 +470,34 @@ table.data tr:nth-child(even) td { background: #fafafa; }
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
+                val jobName = "تسجيل_فردي_${bundle.month.name}"
                 try {
-                    val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
-                    val adapter: PrintDocumentAdapter = webView.createPrintDocumentAdapter("تسجيل_فردي_${bundle.month.name}")
-                    printManager.print(
-                        "تسجيل_فردي_${bundle.month.name}",
-                        adapter,
-                        PrintAttributes.Builder()
-                            .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
-                            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-                            .build()
-                    )
+                    if (sharePdf) {
+                        shareWebViewAsPdf(context, webView, jobName, userPhone, userEmail) {
+                            decorView?.post { try { decorView.removeView(webView) } catch (_: Exception) { } }
+                        }
+                    } else {
+                        val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
+                        val adapter: PrintDocumentAdapter = webView.createPrintDocumentAdapter(jobName)
+                        printManager.print(
+                            jobName,
+                            adapter,
+                            PrintAttributes.Builder()
+                                .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                                .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                                .build()
+                        )
+                        decorView?.postDelayed({
+                            try { decorView.removeView(webView) } catch (_: Exception) { }
+                        }, 700L)
+                    }
                 } catch (e: Exception) {
                     Toast.makeText(
                         context,
                         "تعذر إنشاء تقرير التسجيل الفردي: ${e.message ?: "خطأ غير معروف"}",
                         Toast.LENGTH_LONG
                     ).show()
-                } finally {
-                    decorView?.postDelayed({
-                        try { decorView.removeView(webView) } catch (_: Exception) { }
-                    }, 700L)
+                    try { decorView?.removeView(webView) } catch (_: Exception) { }
                 }
             }
         }
