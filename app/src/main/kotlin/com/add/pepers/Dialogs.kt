@@ -361,6 +361,7 @@ internal fun UserProfileDialog(
                     label = { Text("البريد الإلكتروني") },
                     modifier = Modifier.fillMaxWidth()
                 )
+                Text("احفظ رقم الهاتف أو البريد الإلكتروني لاستخدامهما عند مشاركة ملف PDF", fontSize = 10.sp, color = Color.Gray)
                 Spacer(Modifier.height(8.dp))
 
                 OutlinedTextField(
