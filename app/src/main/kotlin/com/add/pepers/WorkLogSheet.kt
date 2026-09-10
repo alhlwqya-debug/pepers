@@ -153,6 +153,7 @@ fun WorkLogSheet() {
 
     // ===== حالة الإدخال =====
     var newShopName by remember { mutableStateOf("") }
+    var newShopRegistrationNumber by remember { mutableStateOf("") }
     var newShopMode by remember { mutableStateOf(RegistrationMode.NUMERIC) }
     var newYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR).toString()) }
     var newMonthNumber by remember { mutableStateOf((Calendar.getInstance().get(Calendar.MONTH) + 1).toString()) }
@@ -285,6 +286,7 @@ fun WorkLogSheet() {
             StartScreen(
                 onAddShop = {
                     newShopName = ""
+                    newShopRegistrationNumber = ""
                     newShopMode = RegistrationMode.NUMERIC
                     showShopDialog = true
                 },
@@ -436,6 +438,7 @@ fun WorkLogSheet() {
                 onAddShop = {
                     drawerOpen = false
                     newShopName = ""
+                    newShopRegistrationNumber = ""
                     newShopMode = RegistrationMode.NUMERIC
                     showShopDialog = true
                 },
@@ -485,15 +488,19 @@ fun WorkLogSheet() {
                 imagePickerLauncher.launch("image/*")
             },
             onSave = {
-                prefs.edit()
-                .putString("user_name", userName.trim())
-                .putString("user_phone", userPhone.trim())
-                .putString("user_email", userEmail.trim())
-                .putString("user_shop", userShop.trim())
-                .putString("user_image", userImagePath)
-                .apply()
-                showUserProfile = false
-                Toast.makeText(context, "تم حفظ البيانات الشخصية", Toast.LENGTH_SHORT).show()
+                if (userPhone.trim().isBlank() && userEmail.trim().isBlank()) {
+                    Toast.makeText(context, "أدخل رقم الهاتف أو البريد الإلكتروني لحفظ بيانات المشاركة", Toast.LENGTH_LONG).show()
+                } else {
+                    prefs.edit()
+                        .putString("user_name", userName.trim())
+                        .putString("user_phone", userPhone.trim())
+                        .putString("user_email", userEmail.trim())
+                        .putString("user_shop", userShop.trim())
+                        .putString("user_image", userImagePath)
+                        .apply()
+                    showUserProfile = false
+                    Toast.makeText(context, "تم حفظ البيانات الشخصية", Toast.LENGTH_SHORT).show()
+                }
             },
             onDismiss = {
                 if (userName.isBlank()) {
@@ -519,6 +526,14 @@ fun WorkLogSheet() {
                         onValueChange = { newShopName = it },
                         singleLine = true,
                         label = { Text("اسم المحل") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newShopRegistrationNumber,
+                        onValueChange = { newShopRegistrationNumber = it },
+                        singleLine = true,
+                        label = { Text("رقم المحل / التسجيل *") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(10.dp))
@@ -547,10 +562,13 @@ fun WorkLogSheet() {
                 Button(
                     onClick = {
                         val name = newShopName.trim()
+                        val registrationNumber = newShopRegistrationNumber.trim()
                         if (name.isEmpty()) {
                             Toast.makeText(context, "اكتب اسم المحل أولاً", Toast.LENGTH_SHORT).show()
+                        } else if (registrationNumber.isEmpty()) {
+                            Toast.makeText(context, "أدخل رقم المحل أو رقم التسجيل", Toast.LENGTH_SHORT).show()
                         } else {
-                            val id = database.addShop(name, newShopMode)
+                            val id = database.addShop(name, newShopMode, registrationNumber)
                             if (id > 0L) {
                                 selectedShopId = id
                                 selectedMonthId = null
@@ -963,7 +981,8 @@ fun WorkLogSheet() {
                         userPhone = userPhone,
                         userEmail = userEmail,
                         userShop = userShop,
-                        userImagePath = userImagePath
+                        userImagePath = userImagePath,
+                        sharePdf = sharePdf
                     )
                 } else {
                     printIndividualReportRange(
@@ -978,7 +997,8 @@ fun WorkLogSheet() {
                         userPhone = userPhone,
                         userEmail = userEmail,
                         userShop = userShop,
-                        userImagePath = userImagePath
+                        userImagePath = userImagePath,
+                        sharePdf = sharePdf
                     )
                 }
             }
