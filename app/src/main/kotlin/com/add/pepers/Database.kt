@@ -57,7 +57,8 @@ data class ShopRecord(
     val id: Long,
     val name: String,
     val defaultWorkerId: Long?,
-    val registrationMode: RegistrationMode
+    val registrationMode: RegistrationMode,
+    val registrationNumber: String
 )
 
 data class WorkerRecord(
@@ -129,7 +130,7 @@ SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "add_paper.db"
-        private const val DATABASE_VERSION = 5
+        private const val DATABASE_VERSION = 6
 
         private const val TABLE_SHOPS = "shops"
         private const val TABLE_WORKERS = "workers"
@@ -145,6 +146,7 @@ SQLiteOpenHelper(
         private const val COL_WORKER_ID = "worker_id"
         private const val COL_DEFAULT_WORKER_ID = "default_worker_id"
         private const val COL_REGISTRATION_MODE = "registration_mode"
+        private const val COL_REGISTRATION_NUMBER = "registration_number"
         private const val COL_MONTH_ID = "month_id"
         private const val COL_DAY_ID = "day_id"
         private const val COL_PIECE_ID = "piece_id"
@@ -205,7 +207,8 @@ SQLiteOpenHelper(
                 $COL_ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 $COL_NAME TEXT NOT NULL,
                 $COL_DEFAULT_WORKER_ID INTEGER,
-                $COL_REGISTRATION_MODE TEXT NOT NULL DEFAULT 'NUMERIC'
+                $COL_REGISTRATION_MODE TEXT NOT NULL DEFAULT 'NUMERIC',
+                $COL_REGISTRATION_NUMBER TEXT NOT NULL DEFAULT ''
             )
             """.trimIndent()
         )
@@ -357,6 +360,9 @@ SQLiteOpenHelper(
         if (oldVersion < 5) {
             migrateToVersion5(db)
         }
+        if (oldVersion < 6) {
+            migrateToVersion6(db)
+        }
     }
 
     private fun migrateToVersion4(db: SQLiteDatabase) {
@@ -370,6 +376,10 @@ SQLiteOpenHelper(
         if (!columns.contains(COL_REGISTRATION_MODE)) {
             db.execSQL("ALTER TABLE $TABLE_SHOPS ADD COLUMN $COL_REGISTRATION_MODE TEXT NOT NULL DEFAULT 'NUMERIC'")
         }
+    }
+
+    private fun migrateToVersion6(db: SQLiteDatabase) {
+        addColumnIfMissing(db, TABLE_SHOPS, COL_REGISTRATION_NUMBER, "TEXT NOT NULL DEFAULT ''")
     }
 
     private fun migrateToVersion5(db: SQLiteDatabase) {
@@ -556,7 +566,7 @@ SQLiteOpenHelper(
         val result = mutableListOf<ShopRecord>()
         readableDatabase.query(
             TABLE_SHOPS,
-            arrayOf(COL_ID, COL_NAME, COL_DEFAULT_WORKER_ID, COL_REGISTRATION_MODE),
+            arrayOf(COL_ID, COL_NAME, COL_DEFAULT_WORKER_ID, COL_REGISTRATION_MODE, COL_REGISTRATION_NUMBER),
             null,
             null,
             null,
@@ -566,6 +576,7 @@ SQLiteOpenHelper(
             while (cursor.moveToNext()) {
                 val defaultIndex = cursor.getColumnIndex(COL_DEFAULT_WORKER_ID)
                 val modeIndex = cursor.getColumnIndex(COL_REGISTRATION_MODE)
+                val registrationNumberIndex = cursor.getColumnIndex(COL_REGISTRATION_NUMBER)
                 val mode = if (modeIndex >= 0 && !cursor.isNull(modeIndex)) {
                     runCatching { RegistrationMode.valueOf(cursor.getString(modeIndex)) }.getOrDefault(RegistrationMode.NUMERIC)
                 } else {
@@ -576,7 +587,8 @@ SQLiteOpenHelper(
                         id = cursor.getLong(cursor.getColumnIndexOrThrow(COL_ID)),
                         name = cursor.getString(cursor.getColumnIndexOrThrow(COL_NAME)),
                         defaultWorkerId = if (defaultIndex >= 0 && !cursor.isNull(defaultIndex)) cursor.getLong(defaultIndex) else null,
-                        registrationMode = mode
+                        registrationMode = mode,
+                        registrationNumber = if (registrationNumberIndex >= 0 && !cursor.isNull(registrationNumberIndex)) cursor.getString(registrationNumberIndex) else ""
                     )
                 )
             }
@@ -584,12 +596,17 @@ SQLiteOpenHelper(
         return result
     }
 
-    fun addShop(name: String, registrationMode: RegistrationMode = RegistrationMode.NUMERIC): Long {
+    fun addShop(
+        name: String,
+        registrationMode: RegistrationMode = RegistrationMode.NUMERIC,
+        registrationNumber: String = ""
+    ): Long {
         val cleanName = name.trim()
         if (cleanName.isEmpty()) return -1L
         val values = ContentValues().apply {
             put(COL_NAME, cleanName)
             put(COL_REGISTRATION_MODE, registrationMode.name)
+            put(COL_REGISTRATION_NUMBER, registrationNumber.trim())
         }
         return writableDatabase.insert(TABLE_SHOPS, null, values)
     }
@@ -603,6 +620,11 @@ SQLiteOpenHelper(
 
     fun updateShopRegistrationMode(shopId: Long, mode: RegistrationMode) {
         val values = ContentValues().apply { put(COL_REGISTRATION_MODE, mode.name) }
+        writableDatabase.update(TABLE_SHOPS, values, "$COL_ID = ?", arrayOf(shopId.toString()))
+    }
+
+    fun updateShopRegistrationNumber(shopId: Long, registrationNumber: String) {
+        val values = ContentValues().apply { put(COL_REGISTRATION_NUMBER, registrationNumber.trim()) }
         writableDatabase.update(TABLE_SHOPS, values, "$COL_ID = ?", arrayOf(shopId.toString()))
     }
 
