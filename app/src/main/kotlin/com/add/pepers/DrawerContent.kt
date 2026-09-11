@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,6 +35,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,7 +72,8 @@ internal fun DrawerContent(
         Column(
             modifier = modifier
                 .fillMaxHeight()
-                .background(Color.White)
+                .background(AppSurface)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -105,7 +108,7 @@ internal fun DrawerContent(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFF4EFF8))
+                        .background(AppSurfaceAlt)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -118,7 +121,7 @@ internal fun DrawerContent(
 
             HorizontalDivider(
                 modifier = Modifier.padding(bottom = 10.dp),
-                color = Color(0xFFE7E1EA)
+                color = AppBorder
             )
 
             // ================= بطاقة المستخدم والمحل الحالي =================
@@ -126,7 +129,7 @@ internal fun DrawerContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFFF0E7F7))
+                    .background(AppPrimarySoft)
                     .padding(horizontal = 14.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -134,7 +137,7 @@ internal fun DrawerContent(
                     modifier = Modifier
                         .size(58.dp)
                         .clip(CircleShape)
-                        .background(Color.White),
+                        .background(AppSurface),
                     contentAlignment = Alignment.Center
                 ) {
                     if (userImagePath.isNotBlank()) {
@@ -170,56 +173,13 @@ internal fun DrawerContent(
                     Text(
                         text = currentShop?.name?.takeIf { it.isNotBlank() } ?: "لم يتم اختيار محل",
                         fontSize = 13.sp,
-                        color = Color(0xFF77727B),
+                        color = AppMuted,
                         maxLines = 1
                     )
                 }
             }
 
             Spacer(Modifier.height(10.dp))
-
-            // ================= عناصر الحساب =================
-            DrawerFilledButton(
-                text = "ملفي الشخصي",
-                icon = Icons.Default.Person,
-                containerColor = Purple,
-                onClick = onUserProfile
-            )
-
-            Spacer(Modifier.height(7.dp))
-
-            DrawerFilledButton(
-                text = "الإحصائيات",
-                icon = Icons.Default.Person,
-                containerColor = Blue,
-                onClick = onStatistics
-            )
-
-            Spacer(Modifier.height(7.dp))
-
-            DrawerOutlinedButton(
-                text = "من نحن",
-                icon = "●",
-                onClick = onAbout
-            )
-
-            Spacer(Modifier.height(7.dp))
-
-            DrawerOutlinedButton(
-                text = "دليل الاستخدام",
-                icon = "؟",
-                onClick = onHelp
-            )
-
-            Spacer(Modifier.height(7.dp))
-
-            DrawerOutlinedButton(
-                text = "إعدادات التسجيل",
-                icon = "⚙",
-                onClick = onSettings
-            )
-
-            Spacer(Modifier.height(12.dp))
 
             // ================= قسم المحلات =================
             Row(
@@ -238,7 +198,7 @@ internal fun DrawerContent(
                     text = "المحلات",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF4D4652)
+                    color = AppText
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
@@ -255,8 +215,8 @@ internal fun DrawerContent(
                         .fillMaxWidth()
                         .height(54.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFF8F7F9))
-                        .border(1.dp, Color(0xFFE5E1E8), RoundedCornerShape(12.dp)),
+                        .background(AppSurfaceAlt)
+                        .border(1.dp, AppBorder, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -280,11 +240,11 @@ internal fun DrawerContent(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
-                                    if (selected) Color(0xFFF0E7F7) else Color(0xFFFAFAFA)
+                                    if (selected) AppPrimarySoft else AppSurfaceAlt
                                 )
                                 .border(
                                     width = 1.dp,
-                                    color = if (selected) Purple else Color(0xFFE2DEE5),
+                                    color = if (selected) Purple else AppBorder,
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 .clickable { onSelectShop(shop.id) }
@@ -303,7 +263,7 @@ internal fun DrawerContent(
                                 modifier = Modifier.weight(1f),
                                 fontSize = 13.sp,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (selected) Purple else Color(0xFF4D4652),
+                                color = if (selected) Purple else AppText,
                                 maxLines = 1
                             )
                             if (selected) {
@@ -371,17 +331,75 @@ internal fun DrawerContent(
                 }
             }
 
-            Spacer(Modifier.weight(1f))
+            // ================= الوصول السريع =================
+            Text(
+                text = "الوصول السريع",
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppMuted
+            )
+
+            DrawerFilledButton(
+                text = "ملفي الشخصي",
+                icon = Icons.Default.Person,
+                containerColor = Purple,
+                onClick = onUserProfile
+            )
+
+            Spacer(Modifier.height(7.dp))
+
+            DrawerOutlinedButton(
+                text = "إعدادات التسجيل",
+                icon = "⚙",
+                onClick = onSettings
+            )
+
+            Spacer(Modifier.height(7.dp))
+
+            DrawerOutlinedButton(
+                text = "الإحصائيات",
+                icon = "▥",
+                onClick = onStatistics
+            )
+
+            Spacer(Modifier.height(13.dp))
+
+            Text(
+                text = "المساعدة والمعلومات",
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppMuted
+            )
+
+            DrawerOutlinedButton(
+                text = "دليل الاستخدام",
+                icon = "؟",
+                onClick = onHelp
+            )
+
+            Spacer(Modifier.height(7.dp))
+
+            DrawerOutlinedButton(
+                text = "من نحن",
+                icon = "●",
+                onClick = onAbout
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+Spacer(Modifier.height(14.dp))
 
             HorizontalDivider(
-                color = Color(0xFFE7E1EA),
+                color = AppBorder,
                 modifier = Modifier.padding(top = 6.dp, bottom = 7.dp)
             )
 
             Text(
                 text = "جميع الحقوق محفوظة © 2026",
                 fontSize = 9.sp,
-                color = Color(0xFF99949C),
+                color = AppMuted,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -401,7 +419,7 @@ private fun DrawerFilledButton(
         modifier = Modifier
             .fillMaxWidth()
             .height(44.dp),
-        shape = RoundedCornerShape(22.dp),
+        shape = AppButtonShape,
         colors = ButtonDefaults.buttonColors(containerColor = containerColor),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp)
     ) {
@@ -412,7 +430,7 @@ private fun DrawerFilledButton(
         ) {
             Text(
                 text = text,
-                color = Color.White,
+                color = AppSurface,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -420,7 +438,7 @@ private fun DrawerFilledButton(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Color.White,
+                tint = AppSurface,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -438,8 +456,8 @@ private fun DrawerOutlinedButton(
         modifier = Modifier
             .fillMaxWidth()
             .height(44.dp),
-        shape = RoundedCornerShape(22.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF9B979D)),
+        shape = AppButtonShape,
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppMuted),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = Purple),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp)
     ) {
