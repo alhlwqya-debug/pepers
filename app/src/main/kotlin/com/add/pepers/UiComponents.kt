@@ -102,12 +102,22 @@ val HeaderBlue = Color(0xFFD8E1F3)
 val CardWorkBg = Color(0xFFE8F5E9)
 val CardExpBg = Color(0xFFFFEBEE)
 val CardNetBg = Color(0xFFE3F2FD)
+
+// ألوان الواجهة الموحدة: اللون الأساسي للحركة، والسطوح الهادئة للمحتوى.
 val Purple = Color(0xFF6A4C93)
 val Green = Color(0xFF2E7D32)
 val Blue = Color(0xFF1565C0)
 val Red = Color(0xFFC62828)
-val PageBg = Color(0xFFFFF8FF)
 val Orange = Color(0xFFEF6C00)
+val AppBackground = Color(0xFFF7F5FA)
+val AppSurface = Color.White
+val AppSurfaceAlt = Color(0xFFFAF9FC)
+val AppPrimarySoft = Color(0xFFEDE5F6)
+val AppBorder = Color(0xFFE2DCE8)
+val AppText = Color(0xFF302A36)
+val AppMuted = Color(0xFF746D7B)
+val AppButtonShape = RoundedCornerShape(12.dp)
+val PageBg = AppBackground
 
 // ================ الأبعاد ================
 internal val wDay = 72.dp
@@ -236,11 +246,11 @@ internal fun SummaryCard(
         modifier = modifier
         .clip(RoundedCornerShape(10.dp))
         .background(bgColor)
-        .border(1.dp, textColor.copy(alpha = 0.30f), RoundedCornerShape(10.dp))
+        .border(1.dp, AppBorder, RoundedCornerShape(10.dp))
         .padding(horizontal = 5.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(title, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray)
+        Text(title, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = AppText)
         Spacer(Modifier.height(3.dp))
         Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textColor)
     }
