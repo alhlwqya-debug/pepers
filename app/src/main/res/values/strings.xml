@@ -1,4 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">حساب الخياطين</string>
+    <string name="create_account">إنشاء حساب</string>
+    <string name="sign_in">تسجيل الدخول</string>
+    <string name="auth_subtitle">سجّل دخولك برمز تحقق من دون حفظ كلمة مرور</string>
+    <string name="choose_method">اختر طريقة التسجيل</string>
+    <string name="email">البريد الإلكتروني</string>
+    <string name="phone">رقم الهاتف</string>
+    <string name="email_hint">name@example.com</string>
+    <string name="phone_hint">+967 7XXXXXXXX</string>
+    <string name="send_code">إرسال رمز التحقق</string>
+    <string name="continue_offline">متابعة دون حساب</string>
+    <string name="otp_privacy_note">سنرسل رمزًا لمرة واحدة إلى وسيلة التواصل التي اخترتها. لا نطلب كلمة مرور ولا نخزنها.</string>
+    <string name="offline_title">تعمل دون حساب</string>
+    <string name="offline_body">ستبقى بياناتك على هذا الجهاز ويمكنك استخدامها دون إنترنت. سجّل الدخول لاحقًا إذا أردت مزامنة البيانات بين أجهزتك.</string>
+    <string name="sign_in_for_sync">تسجيل الدخول للمزامنة</string>
+    <string name="enter_code">أدخل رمز التحقق</string>
+    <string name="code_sent_email">أرسلنا رمزًا من 6 أرقام إلى %1$s</string>
+    <string name="code_sent_phone">أرسلنا رمزًا من 6 أرقام إلى %1$s</string>
+    <string name="verification_code">رمز التحقق</string>
+    <string name="verify_and_continue">تحقق ومتابعة</string>
+    <string name="resend_code">إعادة إرسال الرمز</string>
+    <string name="resend_after">إعادة الإرسال بعد %1$d ث</string>
+    <string name="back">رجوع</string>
+    <string name="signed_in_title">تم تسجيل الدخول بنجاح</string>
+    <string name="signed_in_body">حسابك جاهز للمزامنة بين أجهزتك. يمكنك الآن متابعة العمل أو تسجيل الخروج من هذا الجهاز.</string>
+    <string name="sign_out">تسجيل الخروج</string>
+    <string name="error_network">تعذر الاتصال بالإنترنت. تحقق من الشبكة وحاول مرة أخرى.</string>
+    <string name="error_unknown">حدث خطأ غير متوقع. حاول مرة أخرى.</string>
+    <string name="error_email_format">أدخل بريدًا إلكترونيًا صحيحًا.</string>
+    <string name="error_phone_format">أدخل رقم الهاتف بصيغة دولية، مثل +9677XXXXXXX.</string>
+    <string name="error_code_format">أدخل رمز التحقق المكون من 6 أرقام.</string>
+    <string name="error_code_expired">انتهت صلاحية الرمز. اطلب رمزًا جديدًا.</string>
+    <string name="error_user_not_found">هذا الحساب غير موجود. بدّل إلى إنشاء حساب أو استخدم وسيلة أخرى.</string>
+    <string name="error_phone_provider_disabled">التسجيل برقم الهاتف غير مفعّل في إعدادات المشروع حاليًا. فعّل مزود الرسائل النصية في Supabase ثم حاول مرة أخرى.</string>
+    <string name="error_missing_session">تم التحقق، لكن لم نتمكن من فتح الجلسة. حاول مرة أخرى.</string>
+    <string name="error_auth_with_code">تعذر إكمال المصادقة (%1$d). حاول مرة أخرى.</string>
 </resources>
