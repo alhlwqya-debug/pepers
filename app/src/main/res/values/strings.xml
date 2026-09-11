@@ -34,7 +34,8 @@
     <string name="error_code_format">أدخل رمز التحقق المكون من 6 أرقام.</string>
     <string name="error_code_expired">انتهت صلاحية الرمز. اطلب رمزًا جديدًا.</string>
     <string name="error_user_not_found">هذا الحساب غير موجود. بدّل إلى إنشاء حساب أو استخدم وسيلة أخرى.</string>
-    <string name="error_phone_provider_disabled">التسجيل برقم الهاتف غير مفعّل في إعدادات المشروع حاليًا. فعّل مزود الرسائل النصية في Supabase ثم حاول مرة أخرى.</string>
+    <string name="error_phone_provider_disabled">التسجيل برقم الهاتف غير مفعّل في إعدادات المشروع حاليًا. فعّل مزود الرسائل النصية وأدخل بيانات SMS في Supabase ثم حاول مرة أخرى.</string>
+    <string name="error_email_provider_disabled">إرسال رمز البريد الإلكتروني غير مهيأ في Supabase. فعّل Email provider واضبط قالب Magic Link ليعرض {{ .Token }}، ثم أعد المحاولة.</string>
     <string name="error_missing_session">تم التحقق، لكن لم نتمكن من فتح الجلسة. حاول مرة أخرى.</string>
     <string name="error_auth_with_code">تعذر إكمال المصادقة (%1$d). حاول مرة أخرى.</string>
     <string name="developer_credit">تطوير المهندس أحمد عبدالودود الدبعي</string>
