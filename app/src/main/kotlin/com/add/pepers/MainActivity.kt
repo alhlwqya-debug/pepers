@@ -49,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -68,8 +69,9 @@ import com.add.pepers.cloud.AuthResult
 import com.add.pepers.cloud.AuthSession
 import com.add.pepers.cloud.SupabaseAuthRepository
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-private val AppBackground = Color(0xFFFFF8FC)
+private val AuthAppBackground = Color(0xFFFFF8FC)
 private val PrimaryPurple = Color(0xFF6C4AB6)
 private val TextPurple = Color(0xFF5B3C9C)
 private val SoftPurple = Color(0xFFF0E8FB)
@@ -81,7 +83,7 @@ class MainActivity : ComponentActivity() {
         val repository = SupabaseAuthRepository(applicationContext)
         setContent {
             PepersTheme {
-                Surface(color = AppBackground) {
+                Surface(color = AuthAppBackground) {
                     AuthApp(repository)
                 }
             }
@@ -95,8 +97,8 @@ private fun PepersTheme(content: @Composable () -> Unit) {
         colorScheme = MaterialTheme.colorScheme.copy(
             primary = PrimaryPurple,
             onPrimary = Color.White,
-            background = AppBackground,
-            surface = AppBackground,
+            background = AuthAppBackground,
+            surface = AuthAppBackground,
             error = ErrorRed
         ),
         content = content
@@ -121,6 +123,7 @@ private fun AuthApp(repository: SupabaseAuthRepository) {
     var loading by remember { mutableStateOf(false) }
     var resendSeconds by rememberSaveable { mutableIntStateOf(0) }
     var session by remember { mutableStateOf(repository.savedSession()) }
+    val scope = rememberCoroutineScope()
     val method = AuthMethod.valueOf(methodName)
 
     LaunchedEffect(resendSeconds) {
@@ -167,16 +170,18 @@ private fun AuthApp(repository: SupabaseAuthRepository) {
                     onSubmit = {
                         loading = true
                         error = null
-                        val result = repository.sendCode(identifier, method, createAccount)
-                        loading = false
-                        when (result) {
-                            AuthResult.CodeSent -> {
-                                code = ""
-                                resendSeconds = 60
-                                step = AuthStep.CODE.name
+                        scope.launch {
+                            val result = repository.sendCode(identifier, method, createAccount)
+                            loading = false
+                            when (result) {
+                                AuthResult.CodeSent -> {
+                                    code = ""
+                                    resendSeconds = 60
+                                    step = AuthStep.CODE.name
+                                }
+                                is AuthResult.Failure -> error = result.message
+                                is AuthResult.SignedIn -> Unit
                             }
-                            is AuthResult.Failure -> error = result.message
-                            is AuthResult.SignedIn -> Unit
                         }
                     }
                 )
@@ -199,26 +204,30 @@ private fun AuthApp(repository: SupabaseAuthRepository) {
                     onResend = {
                         loading = true
                         error = null
-                        val result = repository.sendCode(identifier, method, createAccount)
-                        loading = false
-                        when (result) {
-                            AuthResult.CodeSent -> resendSeconds = 60
-                            is AuthResult.Failure -> error = result.message
-                            is AuthResult.SignedIn -> Unit
+                        scope.launch {
+                            val result = repository.sendCode(identifier, method, createAccount)
+                            loading = false
+                            when (result) {
+                                AuthResult.CodeSent -> resendSeconds = 60
+                                is AuthResult.Failure -> error = result.message
+                                is AuthResult.SignedIn -> Unit
+                            }
                         }
                     },
                     onVerify = {
                         loading = true
                         error = null
-                        val result = repository.verifyCode(identifier, method, code)
-                        loading = false
-                        when (result) {
-                            is AuthResult.SignedIn -> {
-                                session = result.session
-                                step = AuthStep.SIGNED_IN.name
+                        scope.launch {
+                            val result = repository.verifyCode(identifier, method, code)
+                            loading = false
+                            when (result) {
+                                is AuthResult.SignedIn -> {
+                                    session = result.session
+                                    step = AuthStep.SIGNED_IN.name
+                                }
+                                is AuthResult.Failure -> error = result.message
+                                AuthResult.CodeSent -> Unit
                             }
-                            is AuthResult.Failure -> error = result.message
-                            AuthResult.CodeSent -> Unit
                         }
                     }
                 )
@@ -529,7 +538,7 @@ private fun AuthShell(content: @Composable ColumnScope.() -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackground)
+            .background(AuthAppBackground)
             .navigationBarsPadding()
             .padding(horizontal = 24.dp, vertical = 22.dp)
     ) {
