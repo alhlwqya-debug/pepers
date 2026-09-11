@@ -1366,53 +1366,172 @@ internal fun HelpDialog(
         containerColor = AppBackground,
         shape = RoundedCornerShape(24.dp),
         title = {
-            Column(Modifier.fillMaxWidth()) {
-                Text(
-                    "دليل الاستخدام",
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Purple)
+                    .padding(horizontal = 16.dp, vertical = 15.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    color = Purple,
-                    fontSize = 21.sp,
-                    fontWeight = FontWeight.Bold
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "دليل الاستخدام",
+                        color = Color.White.copy(alpha = 0.86f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.16f))
+                            .padding(horizontal = 9.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "ابدأ هنا",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "أنجز عملك بخطوات واضحة",
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Right
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "خطوات مختصرة لاستخدام التطبيق بطريقة صحيحة",
+                    text = "اتبع المراحل بالترتيب، ثم ارجع إلى الدليل عند الحاجة.",
                     modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    color = Color.Gray,
-                    fontSize = 10.sp
+                    color = Color.White.copy(alpha = 0.82f),
+                    fontSize = 10.sp,
+                    lineHeight = 16.sp,
+                    textAlign = TextAlign.Right
                 )
             }
         },
         text = {
             LazyColumn(
-                modifier = Modifier.fillMaxWidth().height(420.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(455.dp),
+                contentPadding = PaddingValues(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                item { HelpStep("1", "أنشئ المحل", "من القائمة اختر إضافة محل، ثم أدخل اسم المحل واختر نوع التسجيل: عددي أو فردي. كل محل مستقل عن الآخر.") }
-                item { HelpStep("2", "اختر نوع التسجيل", "العددي مناسب لتسجيل كميات القطع لكل يوم. الفردي مناسب للحسابات المرتبطة بأسماء الزبائن وأرقام الصفحات.") }
-                item { HelpStep("3", "أضف الشهر والقطع", "أنشئ الشهر ثم أضف أسماء القطع وأسعارها. يمكنك تعديل الأسعار لاحقًا، وتبقى الحسابات السابقة محفوظة بسعرها المسجل.") }
-                item { HelpStep("4", "التسجيل الفردي", "اختر اليوم ثم اضغط إضافة زبون جديد. أدخل اسم الزبون ورقم الصفحة والكميات، وسيحسب التطبيق مجموع الحساب تلقائيًا.") }
-                item { HelpStep("5", "المصروفات", "أدخل مبلغ المصروف وملاحظته ثم اضغط حفظ. المصروف يدخل في الصافي عند تفعيل خصم المصروف في إعدادات الشهر.") }
-                item { HelpStep("6", "البحث", "في التسجيل الفردي استخدم خانة البحث لاسم الزبون أو رقم الصفحة. البحث يتعامل مع اختلاف الهمزات وبعض اختلافات الحروف والنقاط والأرقام العربية.") }
-                item { HelpStep("7", "الطباعة", "اختر PDF ثم حدد يومًا أو شهرًا أو التقرير الكامل. التقرير العددي والفردي منفصلان ويستخدم كل منهما قالبًا مناسبًا لنوع التسجيل.") }
-                item { HelpStep("8", "النسخ الاحتياطي", "استخدم الحماية والنسخ الاحتياطي لإنشاء نسخة ZIP واحفظها خارج التطبيق، مثل Google Drive أو ذاكرة خارجية، حتى تبقى لديك نسخة عند تغيير الهاتف أو حذف التطبيق.") }
-                item { HelpStep("9", "التطوير السحابي", "بنية البيانات مصممة بحيث يمكن إضافة مزود مزامنة سحابي لاحقًا دون تغيير شاشات التسجيل، مع الحفاظ على البيانات المحلية كنسخة أساسية.") }
-                item { HelpStep("10", "نصيحة مهمة", "لا تعتمد على النسخة الداخلية وحدها. صدّر نسخة احتياطية دورية واحفظها في مكان آمن خارج التطبيق.") }
+                item { HelpIntroCard() }
+
+                item { HelpSectionTitle("التهيئة الأولى", "جهّز التطبيق والمحل قبل بدء التسجيل") }
+                item { HelpStep("1", "أنشئ ملفك والمحل", "من القائمة افتح ملفي الشخصي، ثم أضف المحل واكتب رقم المحل أو رقم التسجيل. يمكنك إدارة أكثر من محل بشكل مستقل.") }
+                item { HelpStep("2", "اختر نوع التسجيل", "اختر التسجيل العددي لتسجيل الكميات اليومية، أو التسجيل الفردي للحسابات المرتبطة بأسماء الزبائن وأرقام الصفحات.") }
+                item { HelpStep("3", "أضف الشهر والقطع", "أنشئ الشهر، ثم أضف أسماء القطع وأسعارها. يمكن تعديل الأسعار لاحقًا، وتبقى الحسابات السابقة محفوظة بسعرها المسجل.") }
+
+                item { HelpSectionTitle("التسجيل اليومي", "سجّل الكميات والحسابات بسرعة وبدقة") }
+                item { HelpStep("4", "ابدأ يومًا جديدًا", "اختر الشهر واليوم، ثم أضف الكميات في التسجيل العددي أو أضف زبونًا جديدًا في التسجيل الفردي. يحسب التطبيق الإجماليات تلقائيًا.") }
+                item { HelpStep("5", "سجّل المصروفات", "أدخل مبلغ المصروف وملاحظته ثم اضغط حفظ. يظهر المصروف في الملخص ويُخصم من الصافي عند تفعيل خيار الخصم في إعدادات الشهر.") }
+                item { HelpStep("6", "استخدم البحث والتنقل", "في التسجيل الفردي ابحث باسم الزبون أو رقم الصفحة، واستخدم أزرار الأيام للوصول إلى السجل المطلوب دون فتح الأشهر يدويًا.") }
+
+                item { HelpSectionTitle("التقارير والحماية", "احتفظ بنتائج عملك وشاركها بأمان") }
+                item { HelpStep("7", "أنشئ تقرير PDF", "افتح PDF، ثم اختر تقرير يوم أو شهر أو التقرير الكامل. التقرير العددي والفردي منفصلان، ويمكن طباعتهما أو مشاركتهما.") }
+                item { HelpStep("8", "شارك التقرير", "بعد إنشاء PDF اختر واتساب أو الرسائل أو البريد من شاشة مشاركة أندرويد. يجب حفظ رقم الهاتف أو البريد في الملف الشخصي لاستخدامهما مع التقرير.") }
+                item { HelpStep("9", "أنشئ نسخة احتياطية", "استخدم الحماية والنسخ الاحتياطي لإنشاء نسخة ZIP، ثم احفظها خارج التطبيق مثل Google Drive أو ذاكرة خارجية.") }
+                item { HelpStep("10", "اعتمد روتينًا آمنًا", "صدّر نسخة احتياطية دورية، وراجع ملخص الإنتاج والمصروف والصافي قبل إغلاق الشهر أو حذفه.") }
             }
         },
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp),
+                shape = AppButtonShape,
                 colors = ButtonDefaults.buttonColors(containerColor = Purple)
             ) {
-                Text("فهمت وابدأ الاستخدام", fontWeight = FontWeight.Bold)
+                Text("فهمت، ابدأ الآن", fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
     )
+}
+
+@Composable
+private fun HelpIntroCard() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppButtonShape)
+            .background(AppPrimarySoft)
+            .border(1.dp, Purple.copy(alpha = 0.15f), AppButtonShape)
+            .padding(horizontal = 12.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(Purple),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("✓", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(
+                text = "ثلاث مراحل تكفي للبدء",
+                color = Purple,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Right
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                text = "التهيئة ← التسجيل اليومي ← التقارير والحماية",
+                color = AppText,
+                fontSize = 10.sp,
+                lineHeight = 15.sp,
+                textAlign = TextAlign.Right
+            )
+        }
+    }
+}
+
+@Composable
+private fun HelpSectionTitle(
+    title: String,
+    subtitle: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(5.dp)
+                .height(28.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Purple)
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(title, color = Purple, fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Right)
+            Text(subtitle, color = AppMuted, fontSize = 9.sp, textAlign = TextAlign.Right)
+        }
+    }
 }
 
 @Composable
@@ -1422,24 +1541,44 @@ private fun HelpStep(
     description: String
 ) {
     Row(
-        Modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White, RoundedCornerShape(14.dp))
-            .border(1.dp, Purple.copy(alpha = 0.10f), RoundedCornerShape(14.dp))
-            .padding(10.dp),
+            .clip(AppButtonShape)
+            .background(AppSurface)
+            .border(1.dp, AppBorder, AppButtonShape)
+            .padding(horizontal = 11.dp, vertical = 10.dp),
         verticalAlignment = Alignment.Top
     ) {
         Box(
-            Modifier.size(30.dp).clip(CircleShape).background(Purple.copy(alpha = 0.12f)),
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(Purple),
             contentAlignment = Alignment.Center
         ) {
-            Text(number, color = Purple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(number, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
-        Spacer(Modifier.width(9.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = Purple, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-            Spacer(Modifier.height(3.dp))
-            Text(description, color = Color.DarkGray, fontSize = 9.sp, lineHeight = 15.sp)
+        Spacer(Modifier.width(10.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.End
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("الخطوة $number", color = AppMuted, fontSize = 8.sp)
+                Text(title, color = Purple, fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.Right)
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = description,
+                color = AppText,
+                fontSize = 10.sp,
+                lineHeight = 16.sp,
+                textAlign = TextAlign.Right
+            )
         }
     }
 }
