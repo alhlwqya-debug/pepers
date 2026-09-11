@@ -366,6 +366,14 @@ private fun IdentifierStep(
             lineHeight = 18.sp,
             modifier = Modifier.fillMaxWidth()
         )
+        Spacer(Modifier.height(18.dp))
+        Text(
+            text = stringResource(R.string.developer_credit),
+            textAlign = TextAlign.Center,
+            color = Color(0xFF8A818E),
+            fontSize = 11.sp,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

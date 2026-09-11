@@ -194,6 +194,10 @@ class SupabaseAuthRepository(private val context: Context) {
             val json = JSONObject(body)
             val normalizedBody = body.lowercase(Locale.ROOT)
             when {
+                normalizedBody.contains("rate limit") ||
+                    normalizedBody.contains("rate_limit") ||
+                    json.optString("error_code").lowercase(Locale.ROOT).contains("rate_limit") ->
+                    context.getString(R.string.error_otp_rate_limit)
                 normalizedBody.contains("phone provider") ||
                     normalizedBody.contains("sms provider") ||
                     json.optString("error_code") == "provider_disabled" ->
