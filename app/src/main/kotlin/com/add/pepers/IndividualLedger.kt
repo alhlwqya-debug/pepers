@@ -268,7 +268,7 @@ internal fun IndividualLedger(
         Row(
             Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF6A3E91), RoundedCornerShape(14.dp))
+                .background(Purple, RoundedCornerShape(14.dp))
                 .padding(horizontal = 8.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -308,7 +308,7 @@ internal fun IndividualLedger(
         Column(
             Modifier
                 .fillMaxWidth()
-                .border(1.dp, Color(0xFFE1D4EE), RoundedCornerShape(12.dp))
+                .border(1.dp, AppBorder, RoundedCornerShape(12.dp))
                 .background(Color.White, RoundedCornerShape(12.dp))
                 .padding(7.dp)
         ) {
@@ -397,8 +397,8 @@ internal fun IndividualLedger(
                     Button(
                         onClick = { selectRecordedDay(recordedDay.date) },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selected) Purple else Color(0xFFEDE5F6),
-                            contentColor = if (selected) Color.White else Color(0xFF4A315F)
+                            containerColor = if (selected) Purple else AppPrimarySoft,
+                            contentColor = if (selected) Color.White else AppText
                         ),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier.height(27.dp)
@@ -446,7 +446,7 @@ internal fun IndividualLedger(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .border(1.dp, Color(0xFFE0D6E8), RoundedCornerShape(10.dp))
+                    .border(1.dp, AppBorder, RoundedCornerShape(10.dp))
                     .background(Color.White, RoundedCornerShape(10.dp))
                     .padding(4.dp)
             ) {
@@ -606,7 +606,7 @@ internal fun IndividualLedger(
                 .fillMaxWidth()
                 .weight(1f)
                 .horizontalScroll(horizontal)
-                .border(1.dp, Color(0xFFB9A9C8), RoundedCornerShape(7.dp))
+                .border(1.dp, AppBorder, RoundedCornerShape(7.dp))
                 .background(Color.White, RoundedCornerShape(7.dp))
         ) {
             val tableWidth = CustomerWidth + PageWidth + (IndividualPieceWidth * pieces.size) + IndividualTotalWidth + IndividualActionWidth
@@ -761,7 +761,7 @@ internal fun IndividualLedger(
         Row(
             Modifier
                 .fillMaxWidth()
-                .border(1.dp, Color(0xFFE0D6E8), RoundedCornerShape(9.dp))
+                .border(1.dp, AppBorder, RoundedCornerShape(9.dp))
                 .background(Color.White, RoundedCornerShape(9.dp))
                 .padding(7.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -801,7 +801,7 @@ internal fun IndividualLedger(
         Row(
             Modifier
                 .fillMaxWidth()
-                .background(Color(0xFFF0F2F5), RoundedCornerShape(7.dp))
+                .background(AppSurfaceAlt, RoundedCornerShape(7.dp))
                 .border(1.dp, Color.LightGray, RoundedCornerShape(7.dp))
                 .padding(5.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
