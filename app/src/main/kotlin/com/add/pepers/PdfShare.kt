@@ -25,6 +25,14 @@ internal fun shareWebViewAsPdf(
     val reportsDir = File(context.cacheDir, "shared_reports").apply { mkdirs() }
     val safeName = jobName.replace(Regex("[^\\p{L}\\p{N}_-]+"), "_").trim('_').ifBlank { "report" }
     val pdfFile = File(reportsDir, System.currentTimeMillis().toString() + "_" + safeName + ".pdf")
+    if (webView.width == 0 || webView.height == 0) {
+        val metrics = context.resources.displayMetrics
+        val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(metrics.widthPixels, android.view.View.MeasureSpec.EXACTLY)
+        val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(metrics.heightPixels, android.view.View.MeasureSpec.AT_MOST)
+        webView.measure(widthSpec, heightSpec)
+        webView.layout(0, 0, webView.measuredWidth, webView.measuredHeight)
+    }
+
     val adapter = webView.createPrintDocumentAdapter(jobName)
     val attributes = PrintAttributes.Builder()
         .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
