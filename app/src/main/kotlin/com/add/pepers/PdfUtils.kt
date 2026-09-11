@@ -237,10 +237,18 @@ table.data tbody tr:nth-child(even) { background: #fafafa; }
         webView.settings.defaultTextEncodingName = "UTF-8"
         val activity = context as? Activity
         val decorView = activity?.window?.decorView as? ViewGroup
-        decorView?.addView(webView, ViewGroup.LayoutParams(1, 1))
+        webView.alpha = 0f
+        decorView?.addView(
+            webView,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
+                webView.postDelayed({
                 val jobName = "دفتر_${bundle.month.name}"
                 try {
                     if (sharePdf) {
@@ -266,6 +274,7 @@ table.data tbody tr:nth-child(even) { background: #fafafa; }
                     Toast.makeText(context, "تعذر إنشاء ملف PDF: ${e.message ?: "خطأ غير معروف"}", Toast.LENGTH_LONG).show()
                     try { decorView?.removeView(webView) } catch (_: Exception) { }
                 }
+                }, 180L)
             }
         }
         webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
@@ -466,10 +475,18 @@ table.data tr:nth-child(even) td { background: #fafafa; }
         webView.settings.defaultTextEncodingName = "UTF-8"
         val activity = context as? Activity
         val decorView = activity?.window?.decorView as? ViewGroup
-        decorView?.addView(webView, ViewGroup.LayoutParams(1, 1))
+        webView.alpha = 0f
+        decorView?.addView(
+            webView,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
+                webView.postDelayed({
                 val jobName = "تسجيل_فردي_${bundle.month.name}"
                 try {
                     if (sharePdf) {
@@ -499,6 +516,7 @@ table.data tr:nth-child(even) td { background: #fafafa; }
                     ).show()
                     try { decorView?.removeView(webView) } catch (_: Exception) { }
                 }
+                }, 180L)
             }
         }
         webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
