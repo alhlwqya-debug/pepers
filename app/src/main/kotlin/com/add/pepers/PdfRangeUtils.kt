@@ -438,9 +438,17 @@ internal fun printHtmlRange(context: Context, jobName: String, html: String) {
         webView.settings.defaultTextEncodingName = "UTF-8"
         val activity = context as? Activity
         val decorView = activity?.window?.decorView as? ViewGroup
-        decorView?.addView(webView, ViewGroup.LayoutParams(1, 1))
+        webView.alpha = 0f
+        decorView?.addView(
+            webView,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
+                webView.postDelayed({
                 try {
                     val manager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
                     val adapter: PrintDocumentAdapter = webView.createPrintDocumentAdapter(jobName)
@@ -466,6 +474,7 @@ internal fun printHtmlRange(context: Context, jobName: String, html: String) {
                         }
                     }, 700L)
                 }
+                }, 180L)
             }
         }
         webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
