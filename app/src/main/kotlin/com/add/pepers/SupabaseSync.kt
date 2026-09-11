@@ -2,7 +2,6 @@ package com.add.pepers
 
 import android.content.Context
 import android.content.ContentValues
-import android.content.ContentValues
 import android.content.SharedPreferences
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
