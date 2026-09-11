@@ -54,6 +54,8 @@ internal fun shareWebViewAsPdf(
             return
         }
 
+        val originalAlpha = webView.alpha
+        webView.alpha = 1f
         val document = PdfDocument()
         try {
             // أبعاد A4 بوحدة النقاط، مع تصغير محتوى WebView ليتناسب مع عرض الصفحة.
@@ -83,6 +85,7 @@ internal fun shareWebViewAsPdf(
             }
         } finally {
             document.close()
+            webView.alpha = originalAlpha
         }
 
         val uri = FileProvider.getUriForFile(
