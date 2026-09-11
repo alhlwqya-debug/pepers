@@ -139,6 +139,8 @@ internal object SupabaseSyncManager {
         val remote = downloadRemote(session)
         LocalSyncImporter.apply(context, remote, SupabaseSessionStore.deviceId(context))
         SyncResult(uploaded, "تمت مزامنة $uploaded سجلًا")
+    }
+
     private suspend fun downloadRemote(session: SupabaseSession): Map<String, JSONArray> = withContext(Dispatchers.IO) {
         val result = linkedMapOf<String, JSONArray>()
         listOf("user_profiles", "shops", "workers", "months", "pieces", "days", "entries", "individual_entries", "individual_entry_items").forEach { table ->
