@@ -64,7 +64,7 @@ class SupabaseAuthRepository(private val context: Context) {
             if (response.code in 200..299) {
                 AuthResult.CodeSent
             } else {
-                AuthResult.Failure(authError(response.body, response.code))
+                AuthResult.Failure(authError(response.body, response.code, method))
             }
         } catch (_: IOException) {
             AuthResult.Failure(context.getString(R.string.error_network))
@@ -189,22 +189,32 @@ class SupabaseAuthRepository(private val context: Context) {
         return HttpResponse(responseCode, responseBody)
     }
 
-    private fun authError(body: String, code: Int): String {
+    private fun authError(body: String, code: Int, method: AuthMethod): String {
         return try {
             val json = JSONObject(body)
             val normalizedBody = body.lowercase(Locale.ROOT)
+            val errorCode = json.optString("error_code").lowercase(Locale.ROOT)
+            val providerDisabled = errorCode == "provider_disabled" ||
+                errorCode == "phone_provider_disabled" ||
+                errorCode == "email_provider_disabled"
             when {
                 normalizedBody.contains("rate limit") ||
                     normalizedBody.contains("rate_limit") ||
-                    json.optString("error_code").lowercase(Locale.ROOT).contains("rate_limit") ->
+                    errorCode.contains("rate_limit") ->
                     context.getString(R.string.error_otp_rate_limit)
-                normalizedBody.contains("phone provider") ||
+                method == AuthMethod.PHONE && (providerDisabled ||
+                    normalizedBody.contains("phone provider") ||
                     normalizedBody.contains("sms provider") ||
-                    json.optString("error_code") == "provider_disabled" ->
+                    normalizedBody.contains("sms service")) ->
                     context.getString(R.string.error_phone_provider_disabled)
-                json.optString("error_code") == "otp_expired" ->
+                method == AuthMethod.EMAIL && (providerDisabled ||
+                    normalizedBody.contains("email provider") ||
+                    normalizedBody.contains("smtp") ||
+                    normalizedBody.contains("email service")) ->
+                    context.getString(R.string.error_email_provider_disabled)
+                errorCode == "otp_expired" ->
                     context.getString(R.string.error_code_expired)
-                json.optString("error_code") == "user_not_found" ->
+                errorCode == "user_not_found" ->
                     context.getString(R.string.error_user_not_found)
                 json.optString("msg").isNotBlank() -> json.optString("msg")
                 json.optString("message").isNotBlank() -> json.optString("message")
