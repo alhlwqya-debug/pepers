@@ -2,17 +2,14 @@ package com.add.pepers
 
 import android.content.Context
 import android.content.Intent
-import android.os.Bundle
-import android.os.CancellationSignal
-import android.os.ParcelFileDescriptor
-import android.print.PageRange
-import android.print.PrintAttributes
-import android.print.PrintDocumentAdapter
-import android.print.PrintDocumentInfo
+import android.graphics.pdf.PdfDocument
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import java.io.File
+import java.io.FileOutputStream
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 internal fun shareWebViewAsPdf(
     context: Context,
@@ -25,19 +22,6 @@ internal fun shareWebViewAsPdf(
     val reportsDir = File(context.cacheDir, "shared_reports").apply { mkdirs() }
     val safeName = jobName.replace(Regex("[^\\p{L}\\p{N}_-]+"), "_").trim('_').ifBlank { "report" }
     val pdfFile = File(reportsDir, System.currentTimeMillis().toString() + "_" + safeName + ".pdf")
-    if (webView.width == 0 || webView.height == 0) {
-        val metrics = context.resources.displayMetrics
-        val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(metrics.widthPixels, android.view.View.MeasureSpec.EXACTLY)
-        val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(metrics.heightPixels, android.view.View.MeasureSpec.AT_MOST)
-        webView.measure(widthSpec, heightSpec)
-        webView.layout(0, 0, webView.measuredWidth, webView.measuredHeight)
-    }
-
-    val adapter = webView.createPrintDocumentAdapter(jobName)
-    val attributes = PrintAttributes.Builder()
-        .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
-        .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-        .build()
 
     fun fail(message: String) {
         pdfFile.delete()
@@ -46,86 +30,84 @@ internal fun shareWebViewAsPdf(
     }
 
     try {
-        adapter.onLayout(
-            null,
-            attributes,
-            CancellationSignal(),
-            object : PrintDocumentAdapter.LayoutResultCallback() {
-                override fun onLayoutFinished(info: PrintDocumentInfo?, changed: Boolean) {
-                    try {
-                        val descriptor = ParcelFileDescriptor.open(
-                            pdfFile,
-                            ParcelFileDescriptor.MODE_CREATE or
-                                ParcelFileDescriptor.MODE_TRUNCATE or
-                                ParcelFileDescriptor.MODE_WRITE_ONLY
-                        )
-                        adapter.onWrite(
-                            arrayOf(PageRange.ALL_PAGES),
-                            descriptor,
-                            CancellationSignal(),
-                            object : PrintDocumentAdapter.WriteResultCallback() {
-                                private fun closeDescriptor() {
-                                    try { descriptor.close() } catch (_: Exception) { }
-                                }
+        val metrics = context.resources.displayMetrics
+        val viewWidth = metrics.widthPixels.coerceAtLeast(1)
+        val contentHeight = maxOf(
+            (webView.contentHeight * webView.scale).roundToInt(),
+            webView.height,
+            metrics.heightPixels
+        ).coerceAtLeast(1)
 
-                                override fun onWriteFinished(pages: Array<PageRange>) {
-                                    closeDescriptor()
-                                    try {
-                                        val uri = FileProvider.getUriForFile(
-                                            context,
-                                            context.packageName + ".fileprovider",
-                                            pdfFile
-                                        )
-                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "application/pdf"
-                                            putExtra(Intent.EXTRA_STREAM, uri)
-                                            putExtra(
-                                                Intent.EXTRA_TEXT,
-                                                "تقرير PDF من تطبيق دفتر الحسابات" +
-                                                    if (phone.isNotBlank()) " — رقم التواصل: " + phone else ""
-                                            )
-                                            if (email.isNotBlank()) {
-                                                putExtra(Intent.EXTRA_EMAIL, arrayOf(email))
-                                            }
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                        context.startActivity(
-                                            Intent.createChooser(shareIntent, "مشاركة تقرير PDF عبر الرسائل أو واتساب أو البريد")
-                                        )
-                                    } catch (e: Exception) {
-                                        fail("تعذر فتح خيارات المشاركة: " + (e.message ?: "خطأ غير معروف"))
-                                        return
-                                    }
-                                    Toast.makeText(context, "تم تجهيز ملف PDF للمشاركة", Toast.LENGTH_SHORT).show()
-                                    onFinished()
-                                }
-
-                                override fun onWriteFailed(error: CharSequence?) {
-                                    closeDescriptor()
-                                    fail("تعذر إنشاء ملف PDF للمشاركة: " + (error ?: "خطأ غير معروف"))
-                                }
-
-                                override fun onWriteCancelled() {
-                                    closeDescriptor()
-                                    fail("تم إلغاء إنشاء ملف PDF")
-                                }
-                            }
-                        )
-                    } catch (e: Exception) {
-                        fail("تعذر تجهيز ملف PDF: " + (e.message ?: "خطأ غير معروف"))
-                    }
-                }
-
-                override fun onLayoutFailed(error: CharSequence?) {
-                    fail("تعذر تنسيق ملف PDF: " + (error ?: "خطأ غير معروف"))
-                }
-
-                override fun onLayoutCancelled() {
-                    fail("تم إلغاء تجهيز ملف PDF")
-                }
-            },
-            Bundle()
+        val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+            viewWidth,
+            android.view.View.MeasureSpec.EXACTLY
         )
+        val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+            contentHeight,
+            android.view.View.MeasureSpec.EXACTLY
+        )
+        webView.measure(widthSpec, heightSpec)
+        webView.layout(0, 0, webView.measuredWidth, webView.measuredHeight)
+
+        if (webView.measuredWidth <= 0 || webView.measuredHeight <= 0) {
+            fail("تعذر قياس محتوى التقرير قبل إنشاء PDF")
+            return
+        }
+
+        val document = PdfDocument()
+        try {
+            // أبعاد A4 بوحدة النقاط، مع تصغير محتوى WebView ليتناسب مع عرض الصفحة.
+            val pageWidth = 595
+            val pageHeight = 842
+            val scale = pageWidth.toFloat() / webView.measuredWidth.toFloat()
+            val contentHeightPerPage = pageHeight.toFloat() / scale
+            val pageCount = ceil(webView.measuredHeight / contentHeightPerPage)
+                .toInt()
+                .coerceAtLeast(1)
+
+            for (pageIndex in 0 until pageCount) {
+                val page = document.startPage(
+                    PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageIndex + 1).create()
+                )
+                val canvas = page.canvas
+                canvas.save()
+                canvas.scale(scale, scale)
+                canvas.translate(0f, -pageIndex * contentHeightPerPage)
+                webView.draw(canvas)
+                canvas.restore()
+                document.finishPage(page)
+            }
+
+            FileOutputStream(pdfFile).use { output ->
+                document.writeTo(output)
+            }
+        } finally {
+            document.close()
+        }
+
+        val uri = FileProvider.getUriForFile(
+            context,
+            context.packageName + ".fileprovider",
+            pdfFile
+        )
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(
+                Intent.EXTRA_TEXT,
+                "تقرير PDF من تطبيق دفتر الحسابات" +
+                    if (phone.isNotBlank()) " — رقم التواصل: " + phone else ""
+            )
+            if (email.isNotBlank()) {
+                putExtra(Intent.EXTRA_EMAIL, arrayOf(email))
+            }
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(
+            Intent.createChooser(shareIntent, "مشاركة تقرير PDF عبر الرسائل أو واتساب أو البريد")
+        )
+        Toast.makeText(context, "تم تجهيز ملف PDF للمشاركة", Toast.LENGTH_SHORT).show()
+        onFinished()
     } catch (e: Exception) {
         fail("تعذر إنشاء ملف PDF للمشاركة: " + (e.message ?: "خطأ غير معروف"))
     }
