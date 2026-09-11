@@ -97,7 +97,7 @@ class SupabaseAuthRepository(private val context: Context) {
                 accessToken = null
             )
             if (response.code !in 200..299) {
-                return@withContext AuthResult.Failure(authError(response.body, response.code))
+                return@withContext AuthResult.Failure(authError(response.body, response.code, method))
             }
 
             val json = JSONObject(response.body)
