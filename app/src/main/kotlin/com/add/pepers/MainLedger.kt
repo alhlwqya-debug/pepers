@@ -135,7 +135,7 @@ internal fun MainLedger(
     val totalPieces = bundle.days.sumOf { it.quantities.values.sum() }
     val shopName = shops.firstOrNull { it.id == selectedShopId }?.name ?: ""
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 4.dp)) {
+    Column(Modifier.fillMaxSize().background(PageBg).padding(horizontal = 6.dp, vertical = 4.dp)) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -195,11 +195,11 @@ internal fun MainLedger(
                 Button(
                     onClick = { onSelectMonth(month.id) },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (month.id == selectedMonthId) Purple else Color(0xFFEDE5F6),
-                        contentColor = if (month.id == selectedMonthId) Color.White else Color(0xFF4A315F)
+                        containerColor = if (month.id == selectedMonthId) Purple else AppPrimarySoft,
+                        contentColor = if (month.id == selectedMonthId) Color.White else AppText
                     ),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp)
+                    modifier = Modifier.height(34.dp)
                 ) {
                     Text(month.name, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
@@ -218,48 +218,51 @@ internal fun MainLedger(
         }
 
         Row(
-            Modifier.fillMaxWidth().padding(vertical = 3.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Button(
                 onClick = onAddMonth,
                 colors = ButtonDefaults.buttonColors(containerColor = Green),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                modifier = Modifier.height(28.dp)
+                modifier = Modifier.height(34.dp)
             ) {
-                Text("+ شهر", fontSize = 9.sp)
+                Text("+ شهر", fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
             Button(
                 onClick = onAddPiece,
                 colors = ButtonDefaults.buttonColors(containerColor = Blue),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                modifier = Modifier.height(28.dp)
+                modifier = Modifier.height(34.dp)
             ) {
-                Text("+ قطعة", fontSize = 9.sp)
+                Text("+ قطعة", fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
             // ✅ زر إدارة القطع (جديد)
             Button(
                 onClick = onManagePieces,
                 colors = ButtonDefaults.buttonColors(containerColor = Orange),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                modifier = Modifier.height(28.dp)
+                modifier = Modifier.height(34.dp)
             ) {
                 Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
                 Spacer(Modifier.width(4.dp))
-                Text("إدارة", fontSize = 9.sp)
+                Text("إدارة", fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
             Button(
                 onClick = onPrint,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF795548)),
+                colors = ButtonDefaults.buttonColors(containerColor = Purple),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                modifier = Modifier.height(28.dp)
+                modifier = Modifier.height(34.dp)
             ) {
-                Text("🖨️ PDF", fontSize = 9.sp)
+                Text("🖨️ PDF", fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
             TextButton(
                 onClick = onClear,
                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                modifier = Modifier.height(28.dp)
+                modifier = Modifier.height(34.dp)
             ) {
                 Text("مسح", color = Red, fontSize = 9.sp)
             }
@@ -317,7 +320,7 @@ internal fun MainLedger(
                         CellText(it.name, wPiece, 32.dp, Purple, bold = true, size = 9, color = Color.White)
                     }
                     CellText("المصروف", wExpense, 32.dp, Purple, bold = true, size = 10, color = Color.White)
-                    CellText("المجموع", wTotal, 32.dp, Color(0xFF7E57C2), bold = true, size = 10, color = Color.White)
+                    CellText("المجموع", wTotal, 32.dp, Purple, bold = true, size = 10, color = Color.White)
                 }
 
                 LazyColumn(Modifier.fillMaxWidth()) {
@@ -363,7 +366,7 @@ internal fun MainLedger(
                 }
 
                 Row {
-                    CellText("الإجمالي", wDay + wDate, 34.dp, Color(0xFFFFE58F), bold = true, size = 10, color = Color(0xFF4A315F))
+                    CellText("الإجمالي", wDay + wDate, 34.dp, Color(0xFFFFE58F), bold = true, size = 10, color = AppText)
 
                     // ✅ عرض مجموع كل قطعة على حدة وليس الإجمالي الكلي
                     pieces.forEach { piece ->
@@ -374,7 +377,7 @@ internal fun MainLedger(
                             34.dp,
                             Color(0xFFFFE58F),
                             bold = true,
-                            color = Color(0xFF4A315F)
+                            color = AppText
                         )
                     }
 
