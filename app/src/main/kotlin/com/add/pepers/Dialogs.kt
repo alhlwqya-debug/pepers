@@ -296,7 +296,7 @@ internal fun UserProfileDialog(
                     modifier = Modifier
                     .size(100.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFEDE5F6))
+                    .background(AppPrimarySoft)
                     .clickable { onSelectImage() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -587,7 +587,7 @@ internal fun StatisticsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFFF8F4FB),
+        containerColor = AppBackground,
         shape = RoundedCornerShape(28.dp),
         title = {
             Column(
@@ -728,7 +728,7 @@ internal fun StatisticsDialog(
                             value = activeDays.toString(),
                             subtitle = "$activityPercent% من أيام السجل",
                             icon = Icons.Default.Person,
-                            background = Color(0xFFEDE7F6),
+                            background = AppPrimarySoft,
                             accent = Purple,
                             modifier = Modifier.weight(1f)
                         )
@@ -1212,7 +1212,7 @@ internal fun AboutDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFFF8F4FB),
+        containerColor = AppBackground,
         shape = RoundedCornerShape(28.dp),
         icon = {
             Box(
@@ -1247,7 +1247,7 @@ internal fun AboutDialog(
             ) {
                 Text(
                     text = "دفتر الحسابات",
-                    color = Color(0xFF4A315F),
+                    color = AppText,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -1363,7 +1363,7 @@ internal fun HelpDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFFF8F4FB),
+        containerColor = AppBackground,
         shape = RoundedCornerShape(24.dp),
         title = {
             Column(Modifier.fillMaxWidth()) {
