@@ -2,6 +2,7 @@ package com.add.pepers
 
 import android.content.Context
 import android.content.ContentValues
+import android.content.ContentValues
 import android.content.SharedPreferences
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
@@ -139,9 +140,112 @@ internal object SupabaseSyncManager {
         val remote = downloadRemote(session)
         LocalSyncImporter.apply(context, remote, SupabaseSessionStore.deviceId(context))
         SyncResult(uploaded, "تمت مزامنة $uploaded سجلًا")
+    private suspend fun downloadRemote(session: SupabaseSession): Map<String, JSONArray> = withContext(Dispatchers.IO) {
+        val result = linkedMapOf<String, JSONArray>()
+        listOf("user_profiles", "shops", "workers", "months", "pieces", "days", "entries", "individual_entries", "individual_entry_items").forEach { table ->
+            val response = SupabaseHttp.request("GET", "/rest/v1/$table?select=*&user_id=eq.${session.userId}", session = session)
+            result[table] = response.optJSONArray("data") ?: JSONArray()
+        }
+        result
     }
 }
 
+private object LocalSyncImporter {
+    fun apply(context: Context, remote: Map<String, JSONArray>, deviceId: String) {
+        val db = Database(context).writableDatabase
+        db.execSQL("CREATE TABLE IF NOT EXISTS sync_records (record_key TEXT PRIMARY KEY, table_name TEXT NOT NULL, local_id INTEGER NOT NULL)")
+        val ids = mutableMapOf<String, Long>()
+        fun resolve(table: String, recordKey: String, legacyId: Long): Long? {
+            ids[recordKey]?.let { return it }
+            db.rawQuery("SELECT local_id FROM sync_records WHERE record_key = ?", arrayOf(recordKey)).use { c ->
+                if (c.moveToFirst()) return c.getLong(0).also { ids[recordKey] = it }
+            }
+            if (recordKey.startsWith("$deviceId:")) {
+                db.rawQuery("SELECT id FROM $table WHERE id = ?", arrayOf(legacyId.toString())).use { c ->
+                    if (c.moveToFirst()) return c.getLong(0).also { remember(db, recordKey, table, it); ids[recordKey] = it }
+                }
+            }
+            return null
+        }
+        fun ensure(table: String, recordKey: String, legacyId: Long, values: ContentValues): Long {
+            val existing = resolve(table, recordKey, legacyId)
+            val id = if (existing != null) {
+                db.update(table, values, "id = ?", arrayOf(existing.toString()))
+                existing
+            } else {
+                db.insertOrThrow(table, null, values)
+            }
+            remember(db, recordKey, table, id)
+            ids[recordKey] = id
+            return id
+        }
+        fun long(o: JSONObject, name: String): Long = o.optLong(name, 0L)
+        fun text(o: JSONObject, name: String): String = o.optString(name, "")
+        fun nullableLong(o: JSONObject, name: String): Long? = if (o.isNull(name)) null else o.optLong(name).takeIf { it != 0L }
+        fun rows(name: String) = remote[name] ?: JSONArray()
+
+        rows("shops").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val values = ContentValues().apply { put("name", text(o, "name")); nullableLong(o, "default_worker_legacy_id")?.let { put("default_worker_id", it) }; put("registration_mode", text(o, "registration_mode")); put("registration_number", text(o, "registration_number")) }
+            ensure("shops", text(o, "record_key"), id, values)
+        }
+        rows("workers").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val shopId = resolve("shops", text(o, "shop_record_key"), long(o, "shop_legacy_id")) ?: return@forEachObject
+            ensure("workers", text(o, "record_key"), id, ContentValues().apply { put("shop_id", shopId); put("name", text(o, "name")) })
+        }
+        rows("months").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val shopId = resolve("shops", text(o, "shop_record_key"), long(o, "shop_legacy_id")) ?: return@forEachObject
+            val workerId = if (o.isNull("worker_record_key")) null else resolve("workers", text(o, "worker_record_key"), long(o, "worker_legacy_id"))
+            ensure("months", text(o, "record_key"), id, ContentValues().apply { put("shop_id", shopId); if (workerId != null) put("worker_id", workerId) else putNull("worker_id"); put("year", o.optInt("year")); put("month_number", o.optInt("month_number")); put("name", text(o, "name")); put("worker_name", text(o, "worker_name")); put("start_date", text(o, "start_date")); put("deduct_expense", if (o.optBoolean("deduct_expense", true)) 1 else 0) })
+        }
+        rows("pieces").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val shopId = resolve("shops", text(o, "shop_record_key"), long(o, "shop_legacy_id")) ?: return@forEachObject
+            ensure("pieces", text(o, "record_key"), id, ContentValues().apply { put("shop_id", shopId); put("name", text(o, "name")); put("price", o.optInt("price")) })
+        }
+        rows("days").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val monthId = resolve("months", text(o, "month_record_key"), long(o, "month_legacy_id")) ?: return@forEachObject
+            ensure("days", text(o, "record_key"), id, ContentValues().apply { put("month_id", monthId); put("date_value", text(o, "date_value")); put("expense", o.optInt("expense")); put("expense_note", text(o, "expense_note")) })
+        }
+        rows("entries").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val dayId = resolve("days", text(o, "day_record_key"), long(o, "day_legacy_id")) ?: return@forEachObject
+            val pieceId = resolve("pieces", text(o, "piece_record_key"), long(o, "piece_legacy_id")) ?: return@forEachObject
+            ensure("entries", text(o, "record_key"), id, ContentValues().apply { put("day_id", dayId); put("piece_id", pieceId); put("quantity", o.optInt("quantity")); put("unit_price", o.optInt("unit_price")) })
+        }
+        rows("individual_entries").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val dayId = resolve("days", text(o, "day_record_key"), long(o, "day_legacy_id")) ?: return@forEachObject
+            ensure("individual_entries", text(o, "record_key"), id, ContentValues().apply { put("day_id", dayId); put("customer_name", text(o, "customer_name")); put("page_number", text(o, "page_number")); put("customer_search", text(o, "customer_search")); put("customer_search_dotless", text(o, "customer_search_dotless")) })
+        }
+        rows("individual_entry_items").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val entryId = resolve("individual_entries", text(o, "entry_record_key"), long(o, "entry_legacy_id")) ?: return@forEachObject
+            val pieceId = resolve("pieces", text(o, "piece_record_key"), long(o, "piece_legacy_id")) ?: return@forEachObject
+            ensure("individual_entry_items", text(o, "record_key"), id, ContentValues().apply { put("entry_id", entryId); put("piece_id", pieceId); put("quantity", o.optInt("quantity")); put("unit_price", o.optInt("unit_price")) })
+        }
+        remote["user_profiles"]?.optJSONObject(0)?.let { profile ->
+            context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE).edit()
+                .putString("user_name", profile.optString("display_name", ""))
+                .putString("user_phone", profile.optString("phone", ""))
+                .putString("user_email", profile.optString("email", ""))
+                .putString("user_shop", profile.optString("shop_name", ""))
+                .putString("user_image", profile.optString("avatar_path", ""))
+                .apply()
+        }
+    }
+
+    private fun remember(db: SQLiteDatabase, recordKey: String, table: String, localId: Long) {
+        db.insertWithOnConflict("sync_records", null, ContentValues().apply { put("record_key", recordKey); put("table_name", table); put("local_id", localId) }, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    private fun JSONArray.forEachObject(action: (JSONObject) -> Unit) {
+        for (index in 0 until length()) action(optJSONObject(index) ?: continue)
+    }
+}
 private object SupabaseHttp {
     fun request(
         method: String,
