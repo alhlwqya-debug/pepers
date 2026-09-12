@@ -15,6 +15,22 @@ import java.util.concurrent.TimeUnit
 
 internal object BackgroundSyncScheduler {
     private const val WORK_NAME = "pepers_background_sync"
+    private const val IMMEDIATE_WORK_NAME = "pepers_sync_now"
+
+    fun requestNow(context: Context) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+        val request = androidx.work.OneTimeWorkRequestBuilder<BackgroundSyncWorker>()
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
+            .build()
+        WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+            IMMEDIATE_WORK_NAME,
+            androidx.work.ExistingWorkPolicy.REPLACE,
+            request
+        )
+    }
 
     fun ensure(context: Context) {
         val constraints = Constraints.Builder()
