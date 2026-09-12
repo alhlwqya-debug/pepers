@@ -1,6 +1,7 @@
 package com.add.pepers.cloud
 
 import android.content.Context
+import android.net.Uri
 import android.util.Patterns
 import com.add.pepers.R
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +51,51 @@ class SupabaseAuthRepository(private val context: Context) {
             password = password,
             isSignUp = false
         )
+    fun googleAuthUrl(): String =
+        SupabaseConfig.url + "/auth/v1/authorize?provider=google&redirect_to=" +
+            Uri.encode(SupabaseConfig.oauthRedirect) + "&flow_type=implicit"
+
+    suspend fun finishGoogleSignIn(callback: Uri): AuthResult = withContext(Dispatchers.IO) {
+        val params = callback.fragment.orEmpty().split("&")
+            .mapNotNull { part ->
+                val separator = part.indexOf('=')
+                if (separator <= 0) null else part.substring(0, separator) to
+                    Uri.decode(part.substring(separator + 1))
+            }.toMap()
+        if (!params["error_description"].isNullOrBlank() || !params["error"].isNullOrBlank()) {
+            return@withContext AuthResult.Failure(context.getString(R.string.error_google_sign_in))
+        }
+        val accessToken = params["access_token"].orEmpty()
+        val refreshToken = params["refresh_token"].orEmpty()
+        if (accessToken.isBlank() || refreshToken.isBlank()) {
+            return@withContext AuthResult.Failure(context.getString(R.string.error_google_sign_in))
+        }
+        try {
+            val userResponse = getJson("/auth/v1/user", accessToken)
+            if (userResponse.code !in 200..299) {
+                return@withContext AuthResult.Failure(authError(userResponse.body, userResponse.code, false))
+            }
+            val user = JSONObject(userResponse.body)
+            val userId = user.optString("id")
+            if (userId.isBlank()) {
+                return@withContext AuthResult.Failure(context.getString(R.string.error_google_sign_in))
+            }
+            val expiresIn = params["expires_in"]?.toLongOrNull() ?: 3600L
+            val session = AuthSession(
+                accessToken = accessToken,
+                refreshToken = refreshToken,
+                userId = userId,
+                label = user.optString("email"),
+                expiresAt = System.currentTimeMillis() + expiresIn * 1000L
+            )
+            saveSession(session)
+            AuthResult.SignedIn(session)
+        } catch (_: IOException) {
+            AuthResult.Failure(context.getString(R.string.error_network))
+        } catch (_: Exception) {
+            AuthResult.Failure(context.getString(R.string.error_google_sign_in))
+        }
+    }
 
     private suspend fun passwordRequest(
         endpoint: String,
@@ -118,6 +164,21 @@ class SupabaseAuthRepository(private val context: Context) {
         } catch (_: Exception) {
             AuthResult.Failure(context.getString(R.string.error_unknown))
         }
+    }
+
+    private fun getJson(endpoint: String, accessToken: String): HttpResponse {
+        val connection = (URL(SupabaseConfig.url + endpoint).openConnection() as HttpURLConnection)
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 15_000
+        connection.readTimeout = 15_000
+        connection.setRequestProperty("apikey", SupabaseConfig.publishableKey)
+        connection.setRequestProperty("Authorization", "Bearer " + accessToken)
+        connection.setRequestProperty("Accept", "application/json")
+        val responseCode = connection.responseCode
+        val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
+        val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        connection.disconnect()
+        return HttpResponse(responseCode, responseBody)
     }
 
     private fun sessionFromResponse(body: String, label: String): AuthSession? {
@@ -237,4 +298,5 @@ class SupabaseAuthRepository(private val context: Context) {
 private object SupabaseConfig {
     const val url = "https://qieukleyxkvwygzxfgsm.supabase.co"
     const val publishableKey = "sb_publishable_5Y18fNgiYV2tRPyJH5_Ojg_lhf-Ww47"
+    const val oauthRedirect = "pepers://auth/callback"
 }
