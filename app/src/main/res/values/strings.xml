@@ -4,6 +4,17 @@
     <string name="create_account">إنشاء حساب</string>
     <string name="sign_in">تسجيل الدخول</string>
     <string name="auth_subtitle">سجّل دخولك برمز تحقق من دون حفظ كلمة مرور</string>
+    <string name="password_auth_subtitle">سجّل الدخول أو أنشئ حسابًا باستخدام البريد وكلمة المرور</string>
+    <string name="password_auth_note">يتم حفظ جلسة الحساب لمزامنة بياناتك بين أجهزتك. يمكنك المتابعة دون حساب للاستخدام المحلي.</string>
+    <string name="password">كلمة المرور</string>
+    <string name="confirm_password">تأكيد كلمة المرور</string>
+    <string name="password_hint">6 أحرف على الأقل</string>
+    <string name="error_password_short">يجب أن تتكون كلمة المرور من 6 أحرف على الأقل.</string>
+    <string name="error_password_mismatch">كلمتا المرور غير متطابقتين.</string>
+    <string name="account_created_message">تم إنشاء الحساب. إذا طلب Supabase تأكيد البريد، افتح رسالة التأكيد ثم سجّل الدخول.</string>
+    <string name="error_invalid_credentials">البريد الإلكتروني أو كلمة المرور غير صحيحة.</string>
+    <string name="error_email_not_confirmed">لم يتم تأكيد البريد الإلكتروني. افتح رسالة التأكيد ثم حاول تسجيل الدخول.</string>
+    <string name="error_email_already_registered">هذا البريد مسجل مسبقًا. اختر تسجيل الدخول.</string>
     <string name="choose_method">اختر طريقة التسجيل</string>
     <string name="email">البريد الإلكتروني</string>
     <string name="phone">رقم الهاتف</string>
