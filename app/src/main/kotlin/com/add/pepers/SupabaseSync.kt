@@ -2,6 +2,7 @@ package com.add.pepers
 
 import android.content.Context
 import android.content.ContentValues
+import java.io.File
 import android.content.SharedPreferences
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
@@ -118,6 +119,7 @@ internal object SupabaseSyncManager {
     data class SyncResult(val uploadedRows: Int, val message: String)
 
     suspend fun sync(context: Context, session: SupabaseSession): SyncResult = withContext(Dispatchers.IO) {
+        SupabaseStorage.uploadProfileImage(context, session)
         val snapshot = LocalSyncSnapshot.read(context, session.userId, SupabaseSessionStore.deviceId(context))
         val order = listOf(
             "user_profiles", "shops", "workers", "months", "pieces", "days",
@@ -137,6 +139,9 @@ internal object SupabaseSyncManager {
             uploaded += rows.length()
         }
         val remote = downloadRemote(session)
+        remote["user_profiles"]?.optJSONObject(0)?.optString("avatar_path")?.takeIf { it.isNotBlank() }?.let {
+            SupabaseStorage.downloadProfileImage(context, session, it)
+        }
         LocalSyncImporter.apply(context, remote, SupabaseSessionStore.deviceId(context))
         SyncResult(uploaded, "تمت مزامنة $uploaded سجلًا")
     }
@@ -234,7 +239,12 @@ private object LocalSyncImporter {
                 .putString("user_phone", profile.optString("phone", ""))
                 .putString("user_email", profile.optString("email", ""))
                 .putString("user_shop", profile.optString("shop_name", ""))
-                .putString("user_image", profile.optString("avatar_path", ""))
+                .putString(
+                "user_image",
+                profile.optString("avatar_path", "").let { avatarPath ->
+                    if (avatarPath.endsWith("/profile.jpg")) File(context.filesDir, "profile_image.jpg").absolutePath else avatarPath
+                }
+            )
                 .apply()
         }
     }
@@ -312,7 +322,7 @@ private object LocalSyncSnapshot {
             put("phone", context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE).getString("user_phone", "").orEmpty())
             put("email", context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE).getString("user_email", "").orEmpty())
             put("shop_name", context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE).getString("user_shop", "").orEmpty())
-            put("avatar_path", context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE).getString("user_image", "").orEmpty())
+            put("avatar_path", context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE).getString("user_image", "").orEmpty().let { path -> if (path.isNotBlank() && File(path).exists()) SupabaseStorage.profileObjectPath(userId) else "" })
         })
         val shops = rows("SELECT id,name,default_worker_id,registration_mode,registration_number FROM shops") { o, c ->
             val id = c.getLong(0); shopKeys[id] = key("shops", id); o.put("user_id", userId).put("legacy_id", id).put("record_key", key("shops", id)).put("source_device_id", deviceId).put("name", c.getString(1)).put("default_worker_legacy_id", if (c.isNull(2)) JSONObject.NULL else c.getLong(2)).put("registration_mode", c.getString(3)).put("registration_number", c.getString(4))
