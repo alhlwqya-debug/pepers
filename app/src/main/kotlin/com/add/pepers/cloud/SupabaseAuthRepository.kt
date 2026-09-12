@@ -70,6 +70,9 @@ class SupabaseAuthRepository(private val context: Context) {
         try {
             val response = postJson(endpoint, payload)
             if (response.code !in 200..299) {
+                if (isEmailNotConfirmed(response.body)) {
+                    return@withContext AuthResult.EmailConfirmationRequired(normalizedEmail)
+                }
                 return@withContext AuthResult.Failure(authError(response.body, response.code, isSignUp))
             }
 
@@ -78,9 +81,36 @@ class SupabaseAuthRepository(private val context: Context) {
                 saveSession(session)
                 AuthResult.SignedIn(session)
             } else if (isSignUp) {
-                AuthResult.AccountCreated
+                // With Confirm email enabled Supabase creates the user but deliberately
+                // omits the session until the address is verified.
+                AuthResult.EmailConfirmationRequired(normalizedEmail)
             } else {
                 AuthResult.Failure(context.getString(R.string.error_missing_session))
+            }
+        } catch (_: IOException) {
+            AuthResult.Failure(context.getString(R.string.error_network))
+        } catch (_: Exception) {
+            AuthResult.Failure(context.getString(R.string.error_unknown))
+        }
+    }
+
+    suspend fun resendConfirmation(email: String): AuthResult = withContext(Dispatchers.IO) {
+        val normalizedEmail = email.trim().lowercase(Locale.ROOT)
+        if (!Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches()) {
+            return@withContext AuthResult.Failure(context.getString(R.string.error_email_format))
+        }
+
+        val payload = JSONObject().apply {
+            put("type", "signup")
+            put("email", normalizedEmail)
+        }
+
+        try {
+            val response = postJson("/auth/v1/resend", payload)
+            if (response.code !in 200..299) {
+                AuthResult.Failure(authError(response.body, response.code, false))
+            } else {
+                AuthResult.ConfirmationEmailSent(normalizedEmail)
             }
         } catch (_: IOException) {
             AuthResult.Failure(context.getString(R.string.error_network))
@@ -159,22 +189,40 @@ class SupabaseAuthRepository(private val context: Context) {
         return HttpResponse(responseCode, responseBody)
     }
 
+    private fun isEmailNotConfirmed(body: String): Boolean {
+        val lower = body.lowercase(Locale.ROOT)
+        return lower.contains("email_not_confirmed") ||
+            lower.contains("email not confirmed") ||
+            lower.contains("confirm your email") ||
+            lower.contains("email address is not confirmed")
+    }
+
     private fun authError(body: String, code: Int, isSignUp: Boolean): String {
         return try {
             val json = JSONObject(body)
-            val errorCode = json.optString("error_code").lowercase(Locale.ROOT)
+            val errorCode = listOf("error_code", "code", "error")
+                .asSequence()
+                .map { json.optString(it).lowercase(Locale.ROOT) }
+                .firstOrNull { it.isNotBlank() }
+                .orEmpty()
+            val message = listOf("msg", "message", "error_description")
+                .asSequence()
+                .map { json.optString(it) }
+                .firstOrNull { it.isNotBlank() }
+                .orEmpty()
+            val lowerMessage = message.lowercase(Locale.ROOT)
             when {
-                errorCode == "invalid_credentials" ||
-                    json.optString("msg").contains("invalid login credentials", ignoreCase = true) ->
-                    context.getString(R.string.error_invalid_credentials)
-                errorCode == "email_not_confirmed" ->
+                isEmailNotConfirmed(body) ->
                     context.getString(R.string.error_email_not_confirmed)
+                errorCode == "invalid_credentials" || errorCode == "invalid_grant" ||
+                    lowerMessage.contains("invalid login credentials") ->
+                    context.getString(R.string.error_invalid_credentials)
                 isSignUp && (errorCode == "user_already_exists" ||
                     errorCode == "email_exists" ||
-                    json.optString("msg").contains("already registered", ignoreCase = true)) ->
+                    lowerMessage.contains("already registered") ||
+                    lowerMessage.contains("already exists")) ->
                     context.getString(R.string.error_email_already_registered)
-                json.optString("msg").isNotBlank() -> json.optString("msg")
-                json.optString("message").isNotBlank() -> json.optString("message")
+                message.isNotBlank() -> message
                 else -> context.getString(R.string.error_auth_with_code, code)
             }
         } catch (_: Exception) {
