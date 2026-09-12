@@ -15,7 +15,8 @@ data class AuthSession(
     val accessToken: String,
     val refreshToken: String,
     val userId: String,
-    val label: String
+    val label: String,
+    val expiresAt: Long = 0L
 )
 
 sealed class AuthResult {
@@ -98,7 +99,8 @@ class SupabaseAuthRepository(private val context: Context) {
             accessToken = accessToken,
             refreshToken = refreshToken,
             userId = userId,
-            label = label
+            label = label,
+            expiresAt = System.currentTimeMillis() + json.optLong("expires_in", 3600L) * 1000L
         )
     }
 
@@ -108,6 +110,7 @@ class SupabaseAuthRepository(private val context: Context) {
             .putString("refresh_token", session.refreshToken)
             .putString("user_id", session.userId)
             .putString("label", session.label)
+            .putLong("expires_at", session.expiresAt)
             .apply()
     }
 
@@ -118,7 +121,8 @@ class SupabaseAuthRepository(private val context: Context) {
             accessToken = accessToken,
             refreshToken = preferences.getString("refresh_token", "").orEmpty(),
             userId = userId,
-            label = preferences.getString("label", "").orEmpty()
+            label = preferences.getString("label", "").orEmpty(),
+            expiresAt = preferences.getLong("expires_at", 0L)
         )
     }
 
