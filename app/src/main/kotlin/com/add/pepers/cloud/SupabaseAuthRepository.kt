@@ -20,7 +20,8 @@ data class AuthSession(
 )
 
 sealed class AuthResult {
-    data object AccountCreated : AuthResult()
+    data class EmailConfirmationRequired(val email: String) : AuthResult()
+    data class ConfirmationEmailSent(val email: String) : AuthResult()
     data class SignedIn(val session: AuthSession) : AuthResult()
     data class Failure(val message: String) : AuthResult()
 }
