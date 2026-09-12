@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.util.Base64
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,11 @@ import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import javax.crypto.KeyGenerator
+import javax.crypto.Mac
+import javax.crypto.SecretKey
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 
 private const val SECURITY_PREFS = "app_security"
 private const val PIN_HASH = "pin_hash"
@@ -48,9 +54,30 @@ private const val PIN_HASH = "pin_hash"
 internal fun hasAppPin(context: Context): Boolean =
     context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).getString(PIN_HASH, null).orEmpty().isNotBlank()
 
-private fun hashPin(pin: String): String {
+private const val PIN_KEY_ALIAS = "pepers_app_pin"
+
+private fun legacyHashPin(pin: String): String {
     val digest = MessageDigest.getInstance("SHA-256").digest(pin.toByteArray(Charsets.UTF_8))
     return digest.joinToString("") { "%02x".format(it) }
+}
+
+private fun keystoreKey(): SecretKey? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null
+    val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    (keyStore.getKey(PIN_KEY_ALIAS, null) as? SecretKey)?.let { return it }
+    val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256, "AndroidKeyStore")
+    generator.init(KeyGenParameterSpec.Builder(PIN_KEY_ALIAS, KeyProperties.PURPOSE_SIGN).setDigests(KeyProperties.DIGEST_SHA256).build())
+    return generator.generateKey()
+}
+
+private fun hashPin(pin: String): String {
+    return try {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(keystoreKey() ?: return legacyHashPin(pin))
+        Base64.encodeToString(mac.doFinal(pin.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
+    } catch (_: Exception) {
+        legacyHashPin(pin)
+    }
 }
 
 internal fun setAppPin(context: Context, pin: String) {
@@ -61,14 +88,21 @@ internal fun clearAppPin(context: Context) {
     context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).edit().remove(PIN_HASH).apply()
 }
 
-internal fun verifyAppPin(context: Context, pin: String): Boolean =
-    hashPin(pin) == context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).getString(PIN_HASH, "")
+internal fun verifyAppPin(context: Context, pin: String): Boolean {
+    val stored = context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).getString(PIN_HASH, "").orEmpty()
+    if (stored == hashPin(pin)) return true
+    if (stored == legacyHashPin(pin)) {
+        setAppPin(context, pin)
+        return true
+    }
+    return false
+}
 
 @Composable
-internal fun AppLockScreen(context: Context, onUnlocked: () -> Unit) {
+internal fun AppLockScreen(context: Context, onUnlocked: () -> Unit, onUseDeviceLock: () -> Unit) {
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxWidth().padding(28.dp), verticalArrangement = Arrangement.Center) {
+    Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
         Text("🔒 التطبيق مقفل", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Text("أدخل رمز الحماية للوصول إلى الحسابات والبيانات.", fontSize = 12.sp, color = Color.Gray)
@@ -94,6 +128,10 @@ internal fun AppLockScreen(context: Context, onUnlocked: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = Purple)
         ) { Text("فتح التطبيق") }
+        Spacer(Modifier.height(6.dp))
+        TextButton(onClick = onUseDeviceLock, modifier = Modifier.fillMaxWidth()) {
+            Text("استخدام البصمة أو قفل الجهاز")
+        }
     }
 }
 
