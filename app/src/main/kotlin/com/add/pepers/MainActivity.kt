@@ -102,12 +102,10 @@ class MainActivity : FragmentActivity() {
         handleOAuthIntent(intent)
     }
 
-    override fun onNewIntent(intent: android.content.Intent?) {
+    override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
-        if (intent != null) {
-            setIntent(intent)
-            handleOAuthIntent(intent)
-        }
+        setIntent(intent)
+        handleOAuthIntent(intent)
     }
 
     override fun onStop() {
@@ -193,6 +191,7 @@ private fun PasswordAuthApp(
     val passwordShortError = stringResource(R.string.error_password_short)
     val passwordMismatchError = stringResource(R.string.error_password_mismatch)
     val accountCreatedMessage = stringResource(R.string.account_created_message)
+    val emailConfirmationRequiredMessage = stringResource(R.string.email_confirmation_required)
 
     LaunchedEffect(googleResult) {
         when (val result = googleResult) {
@@ -202,7 +201,7 @@ private fun PasswordAuthApp(
             }
             is AuthResult.EmailConfirmationRequired -> {
                 pendingConfirmationEmail = result.email
-                error = stringResource(R.string.email_confirmation_required)
+                error = emailConfirmationRequiredMessage
                 onGoogleResultConsumed()
             }
             is AuthResult.Failure -> {
@@ -289,14 +288,14 @@ private fun PasswordAuthApp(
                     error = when (result) {
                         is AuthResult.ConfirmationEmailSent -> context.getString(R.string.confirmation_email_sent, result.email)
                         is AuthResult.Failure -> result.message
-                        else -> stringResource(R.string.email_confirmation_required)
+                        else -> emailConfirmationRequiredMessage
                     }
                 }
             }, enabled = !loading && !googleLoading, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.resend_confirmation)) }
         }
         Spacer(Modifier.height(16.dp))
         Button(onClick = { submit(false) }, enabled = !loading && !googleLoading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)) {
-            if (loading && !createAccount) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp) else Text(stringResource(R.string.sign_in))
+            if (loading) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp) else Text(stringResource(R.string.sign_in))
         }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = { if (createAccount) submit(true) else { createAccount = true; error = null } }, enabled = !loading && !googleLoading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text(stringResource(R.string.create_account)) }
