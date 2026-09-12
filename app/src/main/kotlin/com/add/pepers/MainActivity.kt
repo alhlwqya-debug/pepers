@@ -87,6 +87,7 @@ private fun PasswordAuthApp(
     var password by rememberSaveable { mutableStateOf("") }
     var confirmPassword by rememberSaveable { mutableStateOf("") }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingConfirmationEmail by rememberSaveable { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var session by remember { mutableStateOf(repository.savedSession()) }
     val scope = rememberCoroutineScope()
@@ -169,7 +170,13 @@ private fun PasswordAuthApp(
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it; error = null },
+            onValueChange = {
+                email = it
+                error = null
+                if (pendingConfirmationEmail != null && pendingConfirmationEmail != it.trim()) {
+                    pendingConfirmationEmail = null
+                }
+            },
             label = { Text(stringResource(R.string.email)) },
             placeholder = { Text(stringResource(R.string.email_hint)) },
             singleLine = true,
@@ -212,6 +219,44 @@ private fun PasswordAuthApp(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+        if (pendingConfirmationEmail != null && !createAccount) {
+            TextButton(
+                onClick = {
+                    val confirmationEmail = pendingConfirmationEmail ?: return@TextButton
+                    loading = true
+                    error = null
+                    scope.launch {
+                        when (val result = repository.resendConfirmation(confirmationEmail)) {
+                            is AuthResult.ConfirmationEmailSent -> {
+                                loading = false
+                                error = context.getString(
+                                    R.string.confirmation_email_sent,
+                                    result.email
+                                )
+                            }
+                            is AuthResult.Failure -> {
+                                loading = false
+                                error = result.message
+                            }
+                            is AuthResult.EmailConfirmationRequired -> {
+                                loading = false
+                                pendingConfirmationEmail = result.email
+                                error = context.getString(R.string.email_confirmation_required)
+                            }
+                            is AuthResult.SignedIn -> {
+                                loading = false
+                                pendingConfirmationEmail = null
+                                session = result.session
+                            }
+                        }
+                    }
+                },
+                enabled = !loading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.resend_confirmation))
+            }
+        }
 
         Spacer(Modifier.height(18.dp))
         Button(
@@ -231,13 +276,24 @@ private fun PasswordAuthApp(
                             }
                             loading = false
                             when (result) {
-                                AuthResult.AccountCreated -> {
+                                is AuthResult.EmailConfirmationRequired -> {
                                     createAccount = false
                                     password = ""
                                     confirmPassword = ""
+                                    pendingConfirmationEmail = result.email
                                     error = accountCreatedMessage
                                 }
-                                is AuthResult.SignedIn -> session = result.session
+                                is AuthResult.ConfirmationEmailSent -> {
+                                    pendingConfirmationEmail = result.email
+                                    error = context.getString(
+                                        R.string.confirmation_email_sent,
+                                        result.email
+                                    )
+                                }
+                                is AuthResult.SignedIn -> {
+                                    pendingConfirmationEmail = null
+                                    session = result.session
+                                }
                                 is AuthResult.Failure -> error = result.message
                             }
                         }
