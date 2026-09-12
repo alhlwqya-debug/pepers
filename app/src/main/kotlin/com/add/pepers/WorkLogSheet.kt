@@ -121,6 +121,10 @@ fun WorkLogSheet() {
     var userShop by remember { mutableStateOf(prefs.getString("user_shop", "") ?: "") }
     var userImagePath by remember { mutableStateOf(prefs.getString("user_image", "") ?: "") }
 
+    LaunchedEffect(shops, months, bundle, pieces, userName, userPhone, userEmail, userShop, userImagePath) {
+        BackgroundSyncScheduler.requestNow(context)
+    }
+
     // ===== حالة واجهة المستخدم =====
     var drawerOpen by remember { mutableStateOf(false) }
     var shopMenuOpen by remember { mutableStateOf(false) }
