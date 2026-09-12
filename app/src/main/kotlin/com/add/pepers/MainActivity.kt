@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -89,13 +90,28 @@ private fun PasswordAuthApp(
     var loading by remember { mutableStateOf(false) }
     var session by remember { mutableStateOf(repository.savedSession()) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val emailFormatError = stringResource(R.string.error_email_format)
     val passwordShortError = stringResource(R.string.error_password_short)
     val passwordMismatchError = stringResource(R.string.error_password_mismatch)
     val accountCreatedMessage = stringResource(R.string.account_created_message)
 
     LaunchedEffect(session) {
-        if (session != null) onEnterApp()
+        val currentSession = session ?: return@LaunchedEffect
+        try {
+            val stored = SupabaseSessionStore.load(context)
+            val active = if (stored != null && stored.expiresAt > 0L &&
+                stored.expiresAt < System.currentTimeMillis() + 60_000L
+            ) {
+                SupabaseAuth.refresh(context, stored)
+            } else {
+                stored
+            }
+            if (active != null) SupabaseSyncManager.sync(context, active)
+        } catch (_: Exception) {
+            // Local data remains available if sync is offline or unavailable.
+        }
+        onEnterApp()
     }
 
     AuthShell {
