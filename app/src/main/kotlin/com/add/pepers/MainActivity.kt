@@ -84,7 +84,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             PepersTheme {
                 Surface(color = AuthAppBackground) {
-                    AuthApp(repository)
+                    var showMainApp by remember { mutableStateOf(false) }
+                    if (showMainApp) {
+                        WorkLogSheet()
+                    } else {
+                        AuthApp(repository, onEnterApp = { showMainApp = true })
+                    }
                 }
             }
         }
@@ -113,7 +118,7 @@ private enum class AuthStep {
 }
 
 @Composable
-private fun AuthApp(repository: SupabaseAuthRepository) {
+private fun AuthApp(repository: SupabaseAuthRepository, onEnterApp: () -> Unit) {
     var step by rememberSaveable { mutableStateOf(AuthStep.IDENTIFIER.name) }
     var methodName by rememberSaveable { mutableStateOf(AuthMethod.EMAIL.name) }
     var createAccount by rememberSaveable { mutableStateOf(true) }
@@ -125,6 +130,10 @@ private fun AuthApp(repository: SupabaseAuthRepository) {
     var session by remember { mutableStateOf(repository.savedSession()) }
     val scope = rememberCoroutineScope()
     val method = AuthMethod.valueOf(methodName)
+
+    LaunchedEffect(session) {
+        if (session != null) onEnterApp()
+    }
 
     LaunchedEffect(resendSeconds) {
         if (resendSeconds > 0) {
@@ -165,7 +174,7 @@ private fun AuthApp(repository: SupabaseAuthRepository) {
                     onContinueOffline = {
                         session = null
                         error = null
-                        step = AuthStep.OFFLINE.name
+                        onEnterApp()
                     },
                     onSubmit = {
                         loading = true
@@ -224,6 +233,7 @@ private fun AuthApp(repository: SupabaseAuthRepository) {
                                 is AuthResult.SignedIn -> {
                                     session = result.session
                                     step = AuthStep.SIGNED_IN.name
+                                     onEnterApp()
                                 }
                                 is AuthResult.Failure -> error = result.message
                                 AuthResult.CodeSent -> Unit
