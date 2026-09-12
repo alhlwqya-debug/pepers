@@ -11,8 +11,11 @@
     <string name="password_hint">6 أحرف على الأقل</string>
     <string name="error_password_short">يجب أن تتكون كلمة المرور من 6 أحرف على الأقل.</string>
     <string name="error_password_mismatch">كلمتا المرور غير متطابقتين.</string>
-    <string name="account_created_message">تم إنشاء الحساب. إذا طلب Supabase تأكيد البريد، افتح رسالة التأكيد ثم سجّل الدخول.</string>
-    <string name="error_invalid_credentials">البريد الإلكتروني أو كلمة المرور غير صحيحة.</string>
+    <string name="account_created_message">تم إنشاء الحساب، لكن يجب تأكيد البريد الإلكتروني أولًا. افتح رسالة التأكيد ثم سجّل الدخول.</string>
+    <string name="email_confirmation_required">لم يتم تأكيد البريد الإلكتروني بعد. افتح رسالة التأكيد ثم سجّل الدخول، أو أعد إرسال الرسالة.</string>
+    <string name="resend_confirmation">إعادة إرسال رسالة التأكيد</string>
+    <string name="confirmation_email_sent">أُعيد إرسال رسالة التأكيد إلى %1$s. افحص الوارد والبريد غير المرغوب فيه.</string>
+    <string name="error_invalid_credentials">تعذر تسجيل الدخول. تأكد من البريد وكلمة المرور، وإذا أنشأت الحساب للتو فأكّد بريدك الإلكتروني أولًا.</string>
     <string name="error_email_not_confirmed">لم يتم تأكيد البريد الإلكتروني. افتح رسالة التأكيد ثم حاول تسجيل الدخول.</string>
     <string name="error_email_already_registered">هذا البريد مسجل مسبقًا. اختر تسجيل الدخول.</string>
     <string name="choose_method">اختر طريقة التسجيل</string>
