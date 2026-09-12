@@ -28,8 +28,7 @@ sealed class AuthResult {
 }
 
 /**
- * Password authentication is intentionally used here. The previous OTP flow
- * is disabled until email/SMS delivery is configured correctly in Supabase.
+ * Password authentication and Supabase OAuth are used here.
  * Only the publishable key is embedded in the Android client.
  */
 class SupabaseAuthRepository(private val context: Context) {
