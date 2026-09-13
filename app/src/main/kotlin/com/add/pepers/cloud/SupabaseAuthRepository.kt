@@ -31,10 +31,10 @@ class SupabaseAuthRepository(private val context: Context) {
 
     suspend fun signUpWithPassword(name: String, phone: String, email: String, password: String): AuthResult =
         withContext(Dispatchers.IO) {
-            val normalizedName = name.trim()
-            val normalizedPhone = phone.trim()
+            val normalizedName = name.trim().replace(Regex("\\s+"), " ")
+            val normalizedPhone = phone.trim().replace(" ", "")
             val normalizedEmail = email.trim().lowercase(Locale.ROOT)
-            validateRegistration(normalizedName, normalizedEmail, password)?.let {
+            validateRegistration(normalizedName, normalizedPhone, normalizedEmail, password)?.let {
                 return@withContext AuthResult.Failure(it)
             }
             val payload = JSONObject().apply {
@@ -189,9 +189,10 @@ class SupabaseAuthRepository(private val context: Context) {
 
     private fun readProfile(key: String): String? = context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE).getString(key, null)
 
-    private fun validateRegistration(name: String, email: String, password: String): String? = when {
-        name.isBlank() -> context.getString(R.string.error_name_required)
+    private fun validateRegistration(name: String, phone: String, email: String, password: String): String? = when {
+        name.length < 2 -> context.getString(R.string.error_name_required)
         !Patterns.EMAIL_ADDRESS.matcher(email).matches() -> context.getString(R.string.error_email_format)
+        phone.length !in 7..15 || phone.any { !it.isDigit() } -> "أدخل رقم جوال صحيحًا من 7 إلى 15 رقمًا."
         password.length < 6 -> context.getString(R.string.error_password_short)
         else -> null
     }
