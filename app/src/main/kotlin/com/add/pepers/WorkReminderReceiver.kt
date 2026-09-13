@@ -8,11 +8,23 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import com.add.pepers.cloud.SupabaseAuthRepository
 import java.util.Calendar
 
 class WorkReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val appContext = context.applicationContext
+        val session = SupabaseAuthRepository(appContext).savedSession()
+
+        // Never inspect or back up a user's local database while no account is
+        // authenticated. This prevents a scheduled receiver from touching the
+        // previous user's data after logout.
+        if (session == null) {
+            WorkReminderScheduler.schedule(appContext)
+            return
+        }
+
+        LocalDatabaseAccountManager.activateUser(appContext, session.userId)
         createInternalAutoBackup(appContext)
         val database = Database(appContext)
 
