@@ -3,6 +3,7 @@
     <string name="app_name">حساب الخياطين</string>
     <string name="create_account">إنشاء حساب</string>
     <string name="sign_in">تسجيل الدخول</string>
+    <string name="switch_to_sign_in">لدي حساب بالفعل</string>
     <string name="auth_subtitle">سجّل الدخول أو أنشئ حسابًا لحفظ بياناتك ومزامنتها بين أجهزتك</string>
     <string name="password">كلمة المرور</string>
     <string name="confirm_password">تأكيد كلمة المرور</string>
