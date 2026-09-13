@@ -3,6 +3,7 @@ package com.add.pepers.cloud
 import android.content.Context
 import android.net.Uri
 import android.util.Patterns
+import com.add.pepers.LocalDatabaseAccountManager
 import com.add.pepers.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -74,6 +75,7 @@ class SupabaseAuthRepository(private val context: Context) {
      */
     suspend fun restoreSession(): AuthResult? = withContext(Dispatchers.IO) {
         val stored = savedSession() ?: return@withContext null
+        LocalDatabaseAccountManager.activateUser(context, stored.userId)
         val now = System.currentTimeMillis()
         val refreshWindowMs = 60_000L
         if (stored.expiresAt > now + refreshWindowMs) {
@@ -200,6 +202,7 @@ class SupabaseAuthRepository(private val context: Context) {
     }
 
     private fun saveSession(session: AuthSession) {
+        LocalDatabaseAccountManager.activateUser(context, session.userId)
         preferences.edit()
             .putString("access_token", session.accessToken)
             .putString("refresh_token", session.refreshToken)
@@ -222,6 +225,8 @@ class SupabaseAuthRepository(private val context: Context) {
     }
 
     fun clearSession() {
+        val currentUserId = preferences.getString("user_id", null)
+        LocalDatabaseAccountManager.snapshotActiveUser(context, currentUserId)
         preferences.edit().clear().apply()
     }
 
