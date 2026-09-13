@@ -54,8 +54,8 @@ class SupabaseAuthRepository(private val context: Context) {
                 }
                 val session = sessionFromResponse(response.body, normalizedEmail)
                     ?: return@withContext AuthResult.Failure(context.getString(R.string.error_email_confirmation_disabled))
-                saveProfile(normalizedName, normalizedPhone, normalizedEmail)
                 saveSession(session)
+                saveProfile(normalizedName, normalizedPhone, normalizedEmail)
                 AuthResult.SignedIn(session)
             } catch (_: IOException) {
                 AuthResult.Failure(context.getString(R.string.error_network))
@@ -141,8 +141,8 @@ class SupabaseAuthRepository(private val context: Context) {
             val phone = metadata?.optString("phone").orEmpty()
             val expiresIn = params["expires_in"]?.toLongOrNull() ?: 3600L
             val session = AuthSession(accessToken, refreshToken, userId, email, System.currentTimeMillis() + expiresIn * 1000L)
-            saveProfile(name, phone, email)
             saveSession(session)
+            saveProfile(name, phone, email)
             AuthResult.SignedIn(session)
         } catch (_: IOException) {
             AuthResult.Failure(context.getString(R.string.error_network))
@@ -165,10 +165,13 @@ class SupabaseAuthRepository(private val context: Context) {
                 ?: return@withContext AuthResult.Failure(context.getString(R.string.error_missing_session))
             val user = runCatching { JSONObject(response.body).optJSONObject("user") }.getOrNull()
             val metadata = user?.optJSONObject("user_metadata")
-            val name = metadata?.optString("full_name")?.takeIf { it.isNotBlank() } ?: metadata?.optString("name")?.takeIf { it.isNotBlank() } ?: readProfile("user_name").orEmpty()
-            val phone = metadata?.optString("phone")?.takeIf { it.isNotBlank() } ?: readProfile("user_phone").orEmpty()
-            saveProfile(name, phone, normalizedEmail)
+            val name = metadata?.optString("full_name")?.takeIf { it.isNotBlank() }
+                ?: metadata?.optString("name")?.takeIf { it.isNotBlank() }
+                ?: readProfile("user_name").orEmpty()
+            val phone = metadata?.optString("phone")?.takeIf { it.isNotBlank() }
+                ?: readProfile("user_phone").orEmpty()
             saveSession(session)
+            saveProfile(name, phone, normalizedEmail)
             AuthResult.SignedIn(session)
         } catch (_: IOException) {
             AuthResult.Failure(context.getString(R.string.error_network))
@@ -202,6 +205,8 @@ class SupabaseAuthRepository(private val context: Context) {
     }
 
     private fun saveSession(session: AuthSession) {
+        // Activate the account before writing profile values so a returning
+        // account restores its own profile first, then receives fresh values.
         LocalDatabaseAccountManager.activateUser(context, session.userId)
         preferences.edit()
             .putString("access_token", session.accessToken)
@@ -227,6 +232,7 @@ class SupabaseAuthRepository(private val context: Context) {
     fun clearSession() {
         val currentUserId = preferences.getString("user_id", null)
         LocalDatabaseAccountManager.snapshotActiveUser(context, currentUserId)
+        LocalDatabaseAccountManager.clearActiveProfile(context)
         preferences.edit().clear().apply()
     }
 
