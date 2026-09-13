@@ -117,7 +117,12 @@ class MainActivity : FragmentActivity() {
 
     private fun launchGoogleSignIn() {
         try {
-            startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(authRepository.googleAuthUrl())))
+            startActivity(
+                android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse(authRepository.googleAuthUrl())
+                )
+            )
         } catch (_: Exception) {
             Toast.makeText(this, getString(R.string.error_google_sign_in), Toast.LENGTH_LONG).show()
         }
@@ -178,11 +183,12 @@ private fun PasswordAuthApp(
     onEnterApp: () -> Unit
 ) {
     var createAccount by rememberSaveable { mutableStateOf(false) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var phone by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var confirmPassword by rememberSaveable { mutableStateOf("") }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingConfirmationEmail by rememberSaveable { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var session by remember { mutableStateOf(repository.savedSession()) }
     val scope = rememberCoroutineScope()
@@ -190,8 +196,6 @@ private fun PasswordAuthApp(
     val emailFormatError = stringResource(R.string.error_email_format)
     val passwordShortError = stringResource(R.string.error_password_short)
     val passwordMismatchError = stringResource(R.string.error_password_mismatch)
-    val accountCreatedMessage = stringResource(R.string.account_created_message)
-    val emailConfirmationRequiredMessage = stringResource(R.string.email_confirmation_required)
 
     LaunchedEffect(googleResult) {
         when (val result = googleResult) {
@@ -199,21 +203,16 @@ private fun PasswordAuthApp(
                 session = result.session
                 onGoogleResultConsumed()
             }
-            is AuthResult.EmailConfirmationRequired -> {
-                pendingConfirmationEmail = result.email
-                error = emailConfirmationRequiredMessage
-                onGoogleResultConsumed()
-            }
             is AuthResult.Failure -> {
                 error = result.message
                 onGoogleResultConsumed()
             }
-            is AuthResult.ConfirmationEmailSent, null -> Unit
+            null -> Unit
         }
     }
 
     LaunchedEffect(session) {
-        session ?: return@LaunchedEffect
+        val current = session ?: return@LaunchedEffect
         try {
             val stored = SupabaseSessionStore.load(context)
             val active = if (stored != null && stored.expiresAt > 0L &&
@@ -221,101 +220,232 @@ private fun PasswordAuthApp(
             ) SupabaseAuth.refresh(context, stored) else stored
             if (active != null) SupabaseSyncManager.sync(context, active)
         } catch (_: Exception) {
-            // Local data remains available if sync is unavailable.
+            // Local SQLite data remains available when the network is unavailable.
         }
-        onEnterApp()
+        if (current.userId.isNotBlank()) onEnterApp()
     }
 
-    fun submit(signUp: Boolean) {
+    fun submitSignIn() {
+        if (email.isBlank()) {
+            error = emailFormatError
+            return
+        }
+        if (password.length < 6) {
+            error = passwordShortError
+            return
+        }
+        loading = true
+        error = null
+        scope.launch {
+            when (val result = repository.signInWithPassword(email, password)) {
+                is AuthResult.SignedIn -> session = result.session
+                is AuthResult.Failure -> error = result.message
+            }
+            loading = false
+        }
+    }
+
+    fun submitRegistration() {
         when {
+            name.isBlank() -> error = context.getString(R.string.error_name_required)
             email.isBlank() -> error = emailFormatError
             password.length < 6 -> error = passwordShortError
-            signUp && password != confirmPassword -> error = passwordMismatchError
+            password != confirmPassword -> error = passwordMismatchError
             else -> {
                 loading = true
                 error = null
                 scope.launch {
-                    val result = if (signUp) repository.signUpWithPassword(email, password) else repository.signInWithPassword(email, password)
-                    loading = false
-                    when (result) {
-                        is AuthResult.EmailConfirmationRequired -> {
-                            createAccount = false
-                            password = ""
-                            confirmPassword = ""
-                            pendingConfirmationEmail = result.email
-                            error = accountCreatedMessage
-                        }
-                        is AuthResult.ConfirmationEmailSent -> {
-                            pendingConfirmationEmail = result.email
-                            error = context.getString(R.string.confirmation_email_sent, result.email)
-                        }
-                        is AuthResult.SignedIn -> {
-                            pendingConfirmationEmail = null
-                            session = result.session
-                        }
+                    when (val result = repository.signUpWithPassword(name, phone, email, password)) {
+                        is AuthResult.SignedIn -> session = result.session
                         is AuthResult.Failure -> error = result.message
                     }
+                    loading = false
                 }
             }
         }
     }
 
     AuthShell {
-        Text(stringResource(R.string.app_name), color = TextPurple, fontSize = 18.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Text(
+            stringResource(R.string.app_name),
+            color = TextPurple,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(Modifier.height(18.dp))
-        Text(stringResource(if (createAccount) R.string.create_account else R.string.sign_in), color = Color(0xFF201A24), fontSize = 29.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Text(
+            stringResource(if (createAccount) R.string.create_account else R.string.sign_in),
+            color = Color(0xFF201A24),
+            fontSize = 29.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(Modifier.height(8.dp))
-        Text(stringResource(R.string.auth_subtitle), color = Color(0xFF5B5560), fontSize = 15.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Text(
+            stringResource(R.string.auth_subtitle),
+            color = Color(0xFF5B5560),
+            fontSize = 15.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(Modifier.height(24.dp))
-        OutlinedTextField(value = email, onValueChange = { email = it; error = null }, label = { Text(stringResource(R.string.email)) }, placeholder = { Text(stringResource(R.string.email_hint)) }, singleLine = true, enabled = !loading && !googleLoading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+
+        if (createAccount) {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it; error = null },
+                label = { Text(stringResource(R.string.full_name)) },
+                singleLine = true,
+                enabled = !loading && !googleLoading,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = phone,
+                onValueChange = { phone = it; error = null },
+                label = { Text(stringResource(R.string.phone_optional)) },
+                singleLine = true,
+                enabled = !loading && !googleLoading,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            )
+            Spacer(Modifier.height(10.dp))
+        }
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it; error = null },
+            label = { Text(stringResource(R.string.email)) },
+            placeholder = { Text(stringResource(R.string.email_hint)) },
+            singleLine = true,
+            enabled = !loading && !googleLoading,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp)
+        )
         Spacer(Modifier.height(10.dp))
-        OutlinedTextField(value = password, onValueChange = { password = it; error = null }, label = { Text(stringResource(R.string.password)) }, placeholder = { Text(stringResource(R.string.password_hint)) }, singleLine = true, enabled = !loading && !googleLoading, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it; error = null },
+            label = { Text(stringResource(R.string.password)) },
+            placeholder = { Text(stringResource(R.string.password_hint)) },
+            singleLine = true,
+            enabled = !loading && !googleLoading,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp)
+        )
         if (createAccount) {
             Spacer(Modifier.height(10.dp))
-            OutlinedTextField(value = confirmPassword, onValueChange = { confirmPassword = it; error = null }, label = { Text(stringResource(R.string.confirm_password)) }, singleLine = true, enabled = !loading && !googleLoading, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+            OutlinedTextField(
+                value = confirmPassword,
+                onValueChange = { confirmPassword = it; error = null },
+                label = { Text(stringResource(R.string.confirm_password)) },
+                singleLine = true,
+                enabled = !loading && !googleLoading,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            )
         }
+
         if (error != null) {
             Spacer(Modifier.height(10.dp))
-            Text(error.orEmpty(), color = ErrorRed, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Text(
+                text = error.orEmpty(),
+                color = ErrorRed,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
-        if (pendingConfirmationEmail != null && !createAccount) {
-            TextButton(onClick = {
-                val confirmationEmail = pendingConfirmationEmail ?: return@TextButton
-                loading = true
-                scope.launch {
-                    val result = repository.resendConfirmation(confirmationEmail)
-                    loading = false
-                    error = when (result) {
-                        is AuthResult.ConfirmationEmailSent -> context.getString(R.string.confirmation_email_sent, result.email)
-                        is AuthResult.Failure -> result.message
-                        else -> emailConfirmationRequiredMessage
-                    }
-                }
-            }, enabled = !loading && !googleLoading, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.resend_confirmation)) }
-        }
+
         Spacer(Modifier.height(16.dp))
-        Button(onClick = { submit(false) }, enabled = !loading && !googleLoading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)) {
-            if (loading) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp) else Text(stringResource(R.string.sign_in))
+        Button(
+            onClick = { if (createAccount) submitRegistration() else submitSignIn() },
+            enabled = !loading && !googleLoading,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+        ) {
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(stringResource(R.string.sign_in))
+            }
         }
         Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = { if (createAccount) submit(true) else { createAccount = true; error = null } }, enabled = !loading && !googleLoading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text(stringResource(R.string.create_account)) }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onGoogleSignIn, enabled = !loading && !googleLoading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-            if (googleLoading) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp) else Text(stringResource(R.string.sign_in_with_google))
+        OutlinedButton(
+            onClick = {
+                createAccount = !createAccount
+                error = null
+            },
+            enabled = !loading && !googleLoading,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Text(stringResource(R.string.create_account))
         }
         Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onEnterApp, enabled = !loading && !googleLoading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text(stringResource(R.string.continue_offline)) }
+        OutlinedButton(
+            onClick = onGoogleSignIn,
+            enabled = !loading && !googleLoading,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            if (googleLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                Text(stringResource(R.string.sign_in_with_google))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onEnterApp,
+            enabled = !loading && !googleLoading,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Text(stringResource(R.string.continue_offline))
+        }
         Spacer(Modifier.height(14.dp))
-        Text(stringResource(R.string.sync_note), color = Color(0xFF6D6572), fontSize = 12.sp, lineHeight = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Text(
+            stringResource(R.string.sync_note),
+            color = Color(0xFF6D6572),
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
 @Composable
 private fun AuthShell(content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, content = content)
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        content = content
+    )
 }
 
 @Composable
 private fun PepersTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(primary = PrimaryPurple, onPrimary = Color.White, background = AuthAppBackground, surface = AuthAppBackground, error = ErrorRed), content = content)
+    MaterialTheme(
+        colorScheme = MaterialTheme.colorScheme.copy(
+            primary = PrimaryPurple,
+            onPrimary = Color.White,
+            background = AuthAppBackground,
+            surface = AuthAppBackground,
+            error = ErrorRed
+        ),
+        content = content
+    )
 }
