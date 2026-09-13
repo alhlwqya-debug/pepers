@@ -1,6 +1,5 @@
 package com.add.pepers
 
-import androidx.lifecycle.lifecycleScope
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -188,12 +187,21 @@ private fun PasswordAuthApp(
     var confirmPassword by rememberSaveable { mutableStateOf("") }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
-    var session by remember { mutableStateOf(repository.savedSession()) }
+    var session by remember { mutableStateOf<AuthSession?>(null) }
+    var restoringSession by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
-        if (session != null) onEnterApp()
+        when (val result = repository.restoreSession()) {
+            is AuthResult.SignedIn -> {
+                session = result.session
+                onEnterApp()
+            }
+            is AuthResult.Failure -> error = result.message
+            null -> Unit
+        }
+        restoringSession = false
     }
 
     LaunchedEffect(googleResult) {
@@ -209,6 +217,19 @@ private fun PasswordAuthApp(
             }
             null -> Unit
         }
+    }
+
+    if (restoringSession) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            CircularProgressIndicator()
+            Spacer(Modifier.height(12.dp))
+            Text("جارٍ استعادة جلسة الحساب…")
+        }
+        return
     }
 
     Column(
