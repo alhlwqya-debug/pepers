@@ -1,5 +1,6 @@
 package com.add.pepers
 
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -34,7 +36,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,8 +53,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.CompositionLocalProvider
+import com.add.pepers.cloud.SupabaseAuthRepository
 
 @Composable
 internal fun DrawerContent(
@@ -66,7 +74,9 @@ internal fun DrawerContent(
     onSettings: () -> Unit,
     onDeleteShop: () -> Unit
 ) {
+    val context = LocalContext.current
     val currentShop = shops.firstOrNull { it.id == selectedShopId }
+    var showSignOutDialog by remember { mutableStateOf(false) }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Column(
@@ -309,7 +319,7 @@ internal fun DrawerContent(
             if (selectedShopId != null) {
                 Spacer(Modifier.height(4.dp))
 
-                androidx.compose.material3.TextButton(
+                TextButton(
                     onClick = onDeleteShop,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -389,7 +399,39 @@ internal fun DrawerContent(
 
             Spacer(Modifier.height(12.dp))
 
-Spacer(Modifier.height(14.dp))
+            // ================= الحساب =================
+            HorizontalDivider(
+                color = AppBorder,
+                modifier = Modifier.padding(top = 6.dp, bottom = 10.dp)
+            )
+
+            Text(
+                text = "الحساب",
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppMuted
+            )
+
+            OutlinedButton(
+                onClick = { showSignOutDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+                shape = AppButtonShape,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Red),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Red),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp)
+            ) {
+                Text(
+                    text = "تسجيل الخروج وتبديل الحساب",
+                    color = Red,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
 
             HorizontalDivider(
                 color = AppBorder,
@@ -404,6 +446,38 @@ Spacer(Modifier.height(14.dp))
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+
+    if (showSignOutDialog) {
+        AlertDialog(
+            onDismissRequest = { showSignOutDialog = false },
+            title = { Text("تسجيل الخروج", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "سيتم حفظ بيانات هذا الحساب على الجهاز ثم تسجيل الخروج. عند تسجيل الدخول بحساب آخر سيتم تحميل بياناته الخاصة فقط."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSignOutDialog = false
+                        onClose()
+                        runCatching {
+                            SupabaseAuthRepository(context.applicationContext).clearSession()
+                            (context as? Activity)?.recreate()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Red)
+                ) {
+                    Text("تسجيل الخروج")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSignOutDialog = false }) {
+                    Text("إلغاء")
+                }
+            }
+        )
     }
 }
 
