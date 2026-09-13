@@ -9,8 +9,8 @@
     <string name="confirm_password">تأكيد كلمة المرور</string>
     <string name="password_hint">6 أحرف على الأقل</string>
     <string name="full_name">الاسم</string>
-    <string name="phone_optional">رقم الجوال (اختياري)</string>
-    <string name="error_name_required">أدخل اسمك.</string>
+    <string name="phone_optional">رقم الجوال</string>
+    <string name="error_name_required">أدخل اسمًا صحيحًا (حرفان على الأقل).</string>
     <string name="error_password_short">يجب أن تتكون كلمة المرور من 6 أحرف على الأقل.</string>
     <string name="error_password_mismatch">كلمتا المرور غير متطابقتين.</string>
     <string name="error_invalid_credentials">تعذر تسجيل الدخول. تأكد من البريد وكلمة المرور.</string>
