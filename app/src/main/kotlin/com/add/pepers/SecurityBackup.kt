@@ -7,6 +7,7 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Base64
 import android.widget.Toast
+import androidx.biometric.BiometricManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,11 +53,35 @@ import android.security.keystore.KeyProperties
 
 private const val SECURITY_PREFS = "app_security"
 private const val PIN_HASH = "pin_hash"
-
-internal fun hasAppPin(context: Context): Boolean =
-    context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).getString(PIN_HASH, null).orEmpty().isNotBlank()
-
+private const val BIOMETRIC_LOCK_ENABLED = "biometric_lock_enabled"
 private const val PIN_KEY_ALIAS = "pepers_app_pin"
+
+/** Returns true when either PIN protection or biometric/device-lock protection is enabled. */
+internal fun hasAppPin(context: Context): Boolean {
+    val prefs = context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
+    return prefs.getString(PIN_HASH, null).orEmpty().isNotBlank() ||
+        prefs.getBoolean(BIOMETRIC_LOCK_ENABLED, false)
+}
+
+internal fun isBiometricLockEnabled(context: Context): Boolean =
+    context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
+        .getBoolean(BIOMETRIC_LOCK_ENABLED, false)
+
+internal fun setBiometricLockEnabled(context: Context, enabled: Boolean) {
+    context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
+        .edit().putBoolean(BIOMETRIC_LOCK_ENABLED, enabled).apply()
+}
+
+internal fun isDeviceLockAvailable(context: Context): Boolean {
+    return try {
+        BiometricManager.from(context).canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        ) == BiometricManager.BIOMETRIC_SUCCESS
+    } catch (_: Exception) {
+        false
+    }
+}
 
 private fun legacyHashPin(pin: String): String {
     val digest = MessageDigest.getInstance("SHA-256").digest(pin.toByteArray(Charsets.UTF_8))
@@ -103,10 +129,15 @@ internal fun verifyAppPin(context: Context, pin: String): Boolean {
 internal fun AppLockScreen(context: Context, onUnlocked: () -> Unit, onUseDeviceLock: () -> Unit) {
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
+    val biometricEnabled = isBiometricLockEnabled(context)
     Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
         Text("🔒 التطبيق مقفل", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
-        Text("أدخل رمز الحماية للوصول إلى الحسابات والبيانات.", fontSize = 12.sp, color = Color.Gray)
+        Text(
+            if (biometricEnabled) "استخدم البصمة أو قفل الجهاز لفتح التطبيق، أو أدخل رمز PIN." else "أدخل رمز الحماية للوصول إلى الحسابات والبيانات.",
+            fontSize = 12.sp,
+            color = Color.Gray
+        )
         Spacer(Modifier.height(18.dp))
         OutlinedTextField(
             value = pin,
@@ -131,7 +162,7 @@ internal fun AppLockScreen(context: Context, onUnlocked: () -> Unit, onUseDevice
         ) { Text("فتح التطبيق") }
         Spacer(Modifier.height(6.dp))
         TextButton(onClick = onUseDeviceLock, modifier = Modifier.fillMaxWidth()) {
-            Text("استخدام البصمة أو قفل الجهاز")
+            Text("🔐 استخدام البصمة أو قفل الجهاز")
         }
     }
 }
@@ -180,12 +211,36 @@ internal fun SecuritySettingsDialog(
     onBackup: () -> Unit,
     onRestore: () -> Unit
 ) {
+    var biometricEnabled by remember { mutableStateOf(isBiometricLockEnabled(context)) }
+    val biometricAvailable = remember { isDeviceLockAvailable(context) }
+    val protectionEnabled = hasPin || biometricEnabled
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("الحماية والنسخ الاحتياطي", fontWeight = FontWeight.Bold) },
         text = {
             Column {
-                Text(if (hasPin) "🔒 حماية التطبيق مفعلة" else "🔓 حماية التطبيق غير مفعلة", fontWeight = FontWeight.Bold)
+                Text(if (protectionEnabled) "🔒 حماية التطبيق مفعلة" else "🔓 حماية التطبيق غير مفعلة", fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(10.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("🔐 البصمة أو قفل الجهاز", fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            if (biometricAvailable) "استخدم بصمة الجهاز أو قفل الشاشة لحماية التطبيق." else "لا تتوفر مصادقة بالبصمة أو قفل الجهاز على هذا الجهاز.",
+                            fontSize = 10.sp,
+                            color = Color.Gray
+                        )
+                    }
+                    Switch(
+                        checked = biometricEnabled,
+                        enabled = biometricAvailable,
+                        onCheckedChange = { enabled ->
+                            setBiometricLockEnabled(context, enabled)
+                            biometricEnabled = enabled
+                        }
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 Text("النسخة الاحتياطية تحمي بياناتك من فقدانها بسبب الأعطال أو الحذف العرضي. وللحماية من حذف التطبيق، انقل النسخة الاحتياطية إلى الهاتف أو التخزين السحابي.", fontSize = 11.sp, color = Color.Gray)
             }
@@ -199,8 +254,8 @@ internal fun SecuritySettingsDialog(
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                TextButton(onClick = onSetPin) { Text("🔒 ${if (hasPin) "تغيير" else "تعيين"} القفل") }
-                if (hasPin) TextButton(onClick = onRemovePin) { Text("إلغاء القفل", color = Color(0xFFC62828)) }
+                TextButton(onClick = onSetPin) { Text("🔒 ${if (hasPin) "تغيير" else "تعيين"} PIN") }
+                if (hasPin) TextButton(onClick = onRemovePin) { Text("إلغاء PIN", color = Color(0xFFC62828)) }
                 TextButton(onClick = onDismiss) { Text("إغلاق") }
             }
         }
