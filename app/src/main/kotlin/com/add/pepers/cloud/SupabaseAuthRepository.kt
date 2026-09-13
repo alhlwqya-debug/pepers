@@ -25,7 +25,7 @@ sealed class AuthResult {
     data class Failure(val message: String) : AuthResult()
 }
 
-/** Password authentication and Supabase OAuth. */
+/** Password authentication, Supabase OAuth, and persistent session management. */
 class SupabaseAuthRepository(private val context: Context) {
     private val preferences = context.getSharedPreferences("supabase_session", Context.MODE_PRIVATE)
 
@@ -65,6 +65,46 @@ class SupabaseAuthRepository(private val context: Context) {
 
     suspend fun signInWithPassword(email: String, password: String): AuthResult =
         passwordRequest("/auth/v1/token?grant_type=password", email, password)
+
+    /**
+     * Restores the local session when the app starts. If the access token is
+     * still valid it is reused; otherwise the refresh token is exchanged for
+     * a new access token. The local session is cleared only when it can no
+     * longer be restored, never merely because the device is offline.
+     */
+    suspend fun restoreSession(): AuthResult? = withContext(Dispatchers.IO) {
+        val stored = savedSession() ?: return@withContext null
+        val now = System.currentTimeMillis()
+        val refreshWindowMs = 60_000L
+        if (stored.expiresAt > now + refreshWindowMs) {
+            return@withContext AuthResult.SignedIn(stored)
+        }
+        if (stored.refreshToken.isBlank()) {
+            return@withContext AuthResult.SignedIn(stored)
+        }
+        try {
+            val payload = JSONObject().apply {
+                put("refresh_token", stored.refreshToken)
+            }
+            val response = postJson("/auth/v1/token?grant_type=refresh_token", payload)
+            if (response.code !in 200..299) {
+                if (response.code in 400..499) clearSession()
+                return@withContext AuthResult.SignedIn(stored)
+            }
+            val refreshed = sessionFromResponse(response.body, stored.label)
+                ?: return@withContext AuthResult.SignedIn(stored)
+            val session = refreshed.copy(
+                refreshToken = refreshed.refreshToken.ifBlank { stored.refreshToken },
+                label = stored.label.ifBlank { refreshed.label }
+            )
+            saveSession(session)
+            AuthResult.SignedIn(session)
+        } catch (_: IOException) {
+            AuthResult.SignedIn(stored)
+        } catch (_: Exception) {
+            AuthResult.SignedIn(stored)
+        }
+    }
 
     fun googleAuthUrl(): String =
         SupabaseConfig.url + "/auth/v1/authorize?provider=google&redirect_to=" +
@@ -172,7 +212,13 @@ class SupabaseAuthRepository(private val context: Context) {
     fun savedSession(): AuthSession? {
         val accessToken = preferences.getString("access_token", null) ?: return null
         val userId = preferences.getString("user_id", null) ?: return null
-        return AuthSession(accessToken, preferences.getString("refresh_token", "").orEmpty(), userId, preferences.getString("label", "").orEmpty(), preferences.getLong("expires_at", 0L))
+        return AuthSession(
+            accessToken,
+            preferences.getString("refresh_token", "").orEmpty(),
+            userId,
+            preferences.getString("label", "").orEmpty(),
+            preferences.getLong("expires_at", 0L)
+        )
     }
 
     fun clearSession() {
@@ -187,7 +233,8 @@ class SupabaseAuthRepository(private val context: Context) {
             .apply()
     }
 
-    private fun readProfile(key: String): String? = context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE).getString(key, null)
+    private fun readProfile(key: String): String? =
+        context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE).getString(key, null)
 
     private fun validateRegistration(name: String, phone: String, email: String, password: String): String? = when {
         name.length < 2 -> context.getString(R.string.error_name_required)
