@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.add.pepers"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.add.pepers"
         minSdk = 21
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 2
         versionName = "1.1.0"
 
