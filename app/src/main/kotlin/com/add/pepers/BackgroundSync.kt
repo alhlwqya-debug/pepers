@@ -63,6 +63,21 @@ internal class BackgroundSyncWorker(
             } else {
                 stored
             }
+
+            // The background worker must operate on the same local database that
+            // belongs to the authenticated Supabase user. This is essential after
+            // reboot, process death, logout/login, or account switching.
+            val activeUserId = LocalDatabaseAccountManager.activeUserId(context)
+            if (activeUserId != active.userId) {
+                LocalDatabaseAccountManager.activateUser(context, active.userId)
+            }
+
+            // Re-check the binding immediately before sync so a stale worker cannot
+            // write another account's records if the active account changed.
+            if (LocalDatabaseAccountManager.activeUserId(context) != active.userId) {
+                return Result.retry()
+            }
+
             SupabaseSyncManager.sync(context, active)
             Result.success()
         } catch (_: Exception) {
