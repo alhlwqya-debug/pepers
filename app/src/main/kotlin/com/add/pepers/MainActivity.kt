@@ -1,7 +1,9 @@
 package com.add.pepers
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -9,22 +11,19 @@ import androidx.activity.compose.setContent
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -36,26 +35,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.add.pepers.cloud.AuthResult
+import com.add.pepers.cloud.AuthSession
 import com.add.pepers.cloud.SupabaseAuthRepository
 import kotlinx.coroutines.launch
 
-private val AuthAppBackground = Color(0xFFFFF8FC)
-private val PrimaryPurple = Color(0xFF6C4AB6)
-private val TextPurple = Color(0xFF5B3C9C)
-private val ErrorRed = Color(0xFFB3261E)
+private val AuthAppBackground = androidx.compose.ui.graphics.Color(0xFFFFF8FC)
 
 class MainActivity : FragmentActivity() {
     private val appLockRequested = mutableStateOf(false)
@@ -69,6 +61,7 @@ class MainActivity : FragmentActivity() {
         appLockRequested.value = hasAppPin(applicationContext)
         BackgroundSyncScheduler.ensure(applicationContext)
         WorkReminderScheduler.schedule(applicationContext)
+
         setContent {
             PepersTheme {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -88,6 +81,7 @@ class MainActivity : FragmentActivity() {
                                 onGoogleSignIn = { launchGoogleSignIn() },
                                 onGoogleResultConsumed = { googleResult.value = null },
                                 onEnterApp = {
+                                    ensureLocalProfile(authRepository.savedSession())
                                     requestNotificationPermissionIfNeeded()
                                     BackgroundSyncScheduler.requestNow(applicationContext)
                                     showMainApp = true
@@ -101,7 +95,7 @@ class MainActivity : FragmentActivity() {
         handleOAuthIntent(intent)
     }
 
-    override fun onNewIntent(intent: android.content.Intent) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleOAuthIntent(intent)
@@ -115,19 +109,14 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun launchGoogleSignIn() {
-        try {
-            startActivity(
-                android.content.Intent(
-                    android.content.Intent.ACTION_VIEW,
-                    android.net.Uri.parse(authRepository.googleAuthUrl())
-                )
-            )
-        } catch (_: Exception) {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(authRepository.googleAuthUrl())))
+        }.onFailure {
             Toast.makeText(this, getString(R.string.error_google_sign_in), Toast.LENGTH_LONG).show()
         }
     }
 
-    private fun handleOAuthIntent(intent: android.content.Intent?) {
+    private fun handleOAuthIntent(intent: Intent?) {
         val callback = intent?.data ?: return
         if (callback.scheme != "pepers" || callback.host != "auth") return
         intent.data = null
@@ -135,6 +124,18 @@ class MainActivity : FragmentActivity() {
         lifecycleScope.launch {
             googleResult.value = authRepository.finishGoogleSignIn(callback)
             googleLoading.value = false
+        }
+    }
+
+    private fun ensureLocalProfile(session: AuthSession?) {
+        if (session == null) return
+        val prefs = getSharedPreferences("add_paper_user", MODE_PRIVATE)
+        val currentName = prefs.getString("user_name", "").orEmpty().trim()
+        if (currentName.isBlank()) {
+            val label = session.label.trim()
+            if (label.isNotBlank()) {
+                prefs.edit().putString("user_name", label.substringBefore('@')).apply()
+            }
         }
     }
 
@@ -157,18 +158,15 @@ class MainActivity : FragmentActivity() {
                 Toast.makeText(this@MainActivity, errString, Toast.LENGTH_SHORT).show()
             }
         })
-        val builder = BiometricPrompt.PromptInfo.Builder()
+        val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle(getString(R.string.app_lock_title))
             .setSubtitle(getString(R.string.app_lock_subtitle))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            builder.setAllowedAuthenticators(
+            .setAllowedAuthenticators(
                 androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK or
                     androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
             )
-        } else {
-            builder.setDeviceCredentialAllowed(true)
-        }
-        prompt.authenticate(builder.build())
+            .build()
+        prompt.authenticate(info)
     }
 }
 
@@ -192,15 +190,17 @@ private fun PasswordAuthApp(
     var session by remember { mutableStateOf(repository.savedSession()) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val emailFormatError = stringResource(R.string.error_email_format)
-    val passwordShortError = stringResource(R.string.error_password_short)
-    val passwordMismatchError = stringResource(R.string.error_password_mismatch)
+
+    LaunchedEffect(Unit) {
+        if (session != null) onEnterApp()
+    }
 
     LaunchedEffect(googleResult) {
         when (val result = googleResult) {
             is AuthResult.SignedIn -> {
                 session = result.session
                 onGoogleResultConsumed()
+                onEnterApp()
             }
             is AuthResult.Failure -> {
                 error = result.message
@@ -210,241 +210,115 @@ private fun PasswordAuthApp(
         }
     }
 
-    LaunchedEffect(session) {
-        val current = session ?: return@LaunchedEffect
-        try {
-            val stored = SupabaseSessionStore.load(context)
-            val active = if (stored != null && stored.expiresAt > 0L &&
-                stored.expiresAt < System.currentTimeMillis() + 60_000L
-            ) SupabaseAuth.refresh(context, stored) else stored
-            if (active != null) SupabaseSyncManager.sync(context, active)
-        } catch (_: Exception) {
-            // Local SQLite data remains available when the network is unavailable.
-        }
-        if (current.userId.isNotBlank()) onEnterApp()
-    }
-
-    fun submitSignIn() {
-        if (email.isBlank()) {
-            error = emailFormatError
-            return
-        }
-        if (password.length < 6) {
-            error = passwordShortError
-            return
-        }
-        loading = true
-        error = null
-        scope.launch {
-            when (val result = repository.signInWithPassword(email, password)) {
-                is AuthResult.SignedIn -> session = result.session
-                is AuthResult.Failure -> error = result.message
-            }
-            loading = false
-        }
-    }
-
-    fun submitRegistration() {
-        when {
-            name.isBlank() -> error = context.getString(R.string.error_name_required)
-            email.isBlank() -> error = emailFormatError
-            password.length < 6 -> error = passwordShortError
-            password != confirmPassword -> error = passwordMismatchError
-            else -> {
-                loading = true
-                error = null
-                scope.launch {
-                    when (val result = repository.signUpWithPassword(name, phone, email, password)) {
-                        is AuthResult.SignedIn -> session = result.session
-                        is AuthResult.Failure -> error = result.message
-                    }
-                    loading = false
-                }
-            }
-        }
-    }
-
-    AuthShell {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
         Text(
-            stringResource(R.string.app_name),
-            color = TextPurple,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(18.dp))
-        Text(
-            stringResource(if (createAccount) R.string.create_account else R.string.sign_in),
-            color = Color(0xFF201A24),
-            fontSize = 29.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
+            text = if (createAccount) "إنشاء حساب جديد" else "تسجيل الدخول",
+            style = MaterialTheme.typography.headlineSmall
         )
         Spacer(Modifier.height(8.dp))
-        Text(
-            stringResource(R.string.auth_subtitle),
-            color = Color(0xFF5B5560),
-            fontSize = 15.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(24.dp))
+        Text("الحساب يحفظ بياناتك ويتيح مزامنتها بين أجهزتك")
+        Spacer(Modifier.height(20.dp))
 
         if (createAccount) {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it; error = null },
-                label = { Text(stringResource(R.string.full_name)) },
+                label = { Text("الاسم") },
                 singleLine = true,
-                enabled = !loading && !googleLoading,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                modifier = Modifier.fillMaxWidth()
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = phone,
                 onValueChange = { phone = it; error = null },
-                label = { Text(stringResource(R.string.phone_optional)) },
+                label = { Text("رقم الهاتف") },
                 singleLine = true,
-                enabled = !loading && !googleLoading,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                modifier = Modifier.fillMaxWidth()
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
         }
 
         OutlinedTextField(
             value = email,
             onValueChange = { email = it; error = null },
-            label = { Text(stringResource(R.string.email)) },
-            placeholder = { Text(stringResource(R.string.email_hint)) },
+            label = { Text("البريد الإلكتروني") },
             singleLine = true,
-            enabled = !loading && !googleLoading,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp)
+            modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = password,
             onValueChange = { password = it; error = null },
-            label = { Text(stringResource(R.string.password)) },
-            placeholder = { Text(stringResource(R.string.password_hint)) },
+            label = { Text("كلمة المرور") },
             singleLine = true,
-            enabled = !loading && !googleLoading,
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp)
+            modifier = Modifier.fillMaxWidth()
         )
+
         if (createAccount) {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = confirmPassword,
                 onValueChange = { confirmPassword = it; error = null },
-                label = { Text(stringResource(R.string.confirm_password)) },
+                label = { Text("تأكيد كلمة المرور") },
                 singleLine = true,
-                enabled = !loading && !googleLoading,
                 visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            )
-        }
-
-        if (error != null) {
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = error.orEmpty(),
-                color = ErrorRed,
-                textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
         }
 
+        error?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, color = MaterialTheme.colorScheme.error)
+        }
+
         Spacer(Modifier.height(16.dp))
         Button(
-            onClick = { if (createAccount) submitRegistration() else submitSignIn() },
-            enabled = !loading && !googleLoading,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
-        ) {
-            if (loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
-                )
-            } else {
-                Text(stringResource(if (createAccount) R.string.create_account else R.string.sign_in))
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(
+            enabled = !loading,
             onClick = {
-                createAccount = !createAccount
-                error = null
+                if (createAccount && password != confirmPassword) {
+                    error = context.getString(R.string.error_password_mismatch)
+                    return@Button
+                }
+                loading = true
+                scope.launch {
+                    val result = if (createAccount) {
+                        repository.signUpWithPassword(name, phone, email, password)
+                    } else {
+                        repository.signInWithPassword(email, password)
+                    }
+                    loading = false
+                    when (result) {
+                        is AuthResult.SignedIn -> {
+                            session = result.session
+                            onEnterApp()
+                        }
+                        is AuthResult.Failure -> error = result.message
+                    }
+                }
             },
-            enabled = !loading && !googleLoading,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Text(stringResource(if (createAccount) R.string.switch_to_sign_in else R.string.create_account))
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = onGoogleSignIn,
-            enabled = !loading && !googleLoading,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            if (googleLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                Text(stringResource(R.string.sign_in_with_google))
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = onEnterApp,
-            enabled = !loading && !googleLoading,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Text(stringResource(R.string.continue_offline))
-        }
-        Spacer(Modifier.height(14.dp))
-        Text(
-            stringResource(R.string.sync_note),
-            color = Color(0xFF6D6572),
-            fontSize = 12.sp,
-            lineHeight = 18.sp,
-            textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
-        )
+        ) {
+            if (loading) CircularProgressIndicator(modifier = Modifier.height(20.dp))
+            else Text(if (createAccount) "إنشاء الحساب" else "تسجيل الدخول")
+        }
+
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            enabled = !loading && !googleLoading,
+            onClick = onGoogleSignIn,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (googleLoading) "جارٍ تسجيل الدخول..." else "المتابعة باستخدام Google")
+        }
+
+        Spacer(Modifier.height(8.dp))
+        TextButton(onClick = { createAccount = !createAccount; error = null }) {
+            Text(if (createAccount) "لدي حساب بالفعل" else "إنشاء حساب جديد")
+        }
     }
-}
-
-@Composable
-private fun AuthShell(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-        content = content
-    )
-}
-
-@Composable
-private fun PepersTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = MaterialTheme.colorScheme.copy(
-            primary = PrimaryPurple,
-            onPrimary = Color.White,
-            background = AuthAppBackground,
-            surface = AuthAppBackground,
-            error = ErrorRed
-        ),
-        content = content
-    )
 }
