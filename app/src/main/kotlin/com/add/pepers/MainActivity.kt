@@ -25,7 +25,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -377,7 +376,7 @@ private fun PasswordAuthApp(
                     strokeWidth = 2.dp
                 )
             } else {
-                Text(stringResource(R.string.sign_in))
+                Text(stringResource(if (createAccount) R.string.create_account else R.string.sign_in))
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -390,7 +389,7 @@ private fun PasswordAuthApp(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp)
         ) {
-            Text(stringResource(R.string.create_account))
+            Text(stringResource(if (createAccount) R.string.switch_to_sign_in else R.string.create_account))
         }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(
