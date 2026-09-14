@@ -82,7 +82,16 @@ class MainActivity : FragmentActivity() {
                                 onGoogleSignIn = { launchGoogleSignIn() },
                                 onGoogleResultConsumed = { googleResult.value = null },
                                 onEnterApp = {
-                                    ensureLocalProfile(authRepository.savedSession())
+                                    val session = authRepository.savedSession()
+                                    if (session != null) {
+                                        LocalDatabaseAccountManager.activateUser(applicationContext, session.userId)
+                                        runCatching {
+                                            SupabaseSessionStore.load(applicationContext)?.let {
+                                                SupabaseSyncManager.sync(applicationContext, it)
+                                            }
+                                        }
+                                    }
+                                    ensureLocalProfile(session)
                                     requestNotificationPermissionIfNeeded()
                                     BackgroundSyncScheduler.requestNow(applicationContext)
                                     showMainApp = true
@@ -178,7 +187,7 @@ private fun PasswordAuthApp(
     googleLoading: Boolean,
     onGoogleSignIn: () -> Unit,
     onGoogleResultConsumed: () -> Unit,
-    onEnterApp: () -> Unit
+    onEnterApp: suspend () -> Unit
 ) {
     var createAccount by rememberSaveable { mutableStateOf(false) }
     var name by rememberSaveable { mutableStateOf("") }
