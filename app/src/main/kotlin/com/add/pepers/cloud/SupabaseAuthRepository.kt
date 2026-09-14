@@ -26,7 +26,7 @@ sealed class AuthResult {
     data class Failure(val message: String) : AuthResult()
 }
 
-/** Password authentication, Supabase OAuth, and persistent session management. */
+/** Password authentication, Supabase OAuth, password recovery, and persistent session management. */
 class SupabaseAuthRepository(private val context: Context) {
     private val preferences = context.getSharedPreferences("supabase_session", Context.MODE_PRIVATE)
 
@@ -66,6 +66,30 @@ class SupabaseAuthRepository(private val context: Context) {
 
     suspend fun signInWithPassword(email: String, password: String): AuthResult =
         passwordRequest("/auth/v1/token?grant_type=password", email, password)
+
+    /** Sends Supabase's password-reset email to the supplied account. */
+    suspend fun requestPasswordReset(email: String): AuthResult = withContext(Dispatchers.IO) {
+        val normalizedEmail = email.trim().lowercase(Locale.ROOT)
+        if (!Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches()) {
+            return@withContext AuthResult.Failure(context.getString(R.string.error_email_format))
+        }
+        val payload = JSONObject().apply {
+            put("email", normalizedEmail)
+            put("redirect_to", SupabaseConfig.oauthRedirect)
+        }
+        try {
+            val response = postJson("/auth/v1/recover", payload)
+            if (response.code !in 200..299) {
+                return@withContext AuthResult.Failure(authError(response.body, response.code, false))
+            }
+            // A successful recovery request intentionally returns no authenticated session.
+            AuthResult.SignedIn(AuthSession("", "", "", normalizedEmail))
+        } catch (_: IOException) {
+            AuthResult.Failure(context.getString(R.string.error_network))
+        } catch (_: Exception) {
+            AuthResult.Failure(context.getString(R.string.error_unknown))
+        }
+    }
 
     /**
      * Restores the local session when the app starts. If the access token is
@@ -205,8 +229,6 @@ class SupabaseAuthRepository(private val context: Context) {
     }
 
     private fun saveSession(session: AuthSession) {
-        // Activate the account before writing profile values so a returning
-        // account restores its own profile first, then receives fresh values.
         LocalDatabaseAccountManager.activateUser(context, session.userId)
         preferences.edit()
             .putString("access_token", session.accessToken)
