@@ -9,13 +9,24 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -35,9 +46,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -48,7 +66,10 @@ import com.add.pepers.cloud.AuthSession
 import com.add.pepers.cloud.SupabaseAuthRepository
 import kotlinx.coroutines.launch
 
-private val AuthAppBackground = androidx.compose.ui.graphics.Color(0xFFFFF8FC)
+private val AuthAppBackground = Color(0xFFFFF8FC)
+private val AuthPrimary = Color(0xFF7B2CBF)
+private val AuthPrimaryDark = Color(0xFF5A189A)
+private val AuthFieldBorder = Color(0xFFD7D2DB)
 
 class MainActivity : FragmentActivity() {
     private val appLockRequested = mutableStateOf(false)
@@ -199,6 +220,11 @@ private fun PasswordAuthApp(
     var loading by remember { mutableStateOf(false) }
     var session by remember { mutableStateOf<AuthSession?>(null) }
     var restoringSession by remember { mutableStateOf(true) }
+    var showResetDialog by rememberSaveable { mutableStateOf(false) }
+    var resetLoading by remember { mutableStateOf(false) }
+    var resetMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -235,122 +261,282 @@ private fun PasswordAuthApp(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = AuthPrimary)
             Spacer(Modifier.height(12.dp))
             Text("جارٍ استعادة جلسة الحساب…")
         }
         return
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = if (createAccount) "إنشاء حساب جديد" else "تسجيل الدخول",
-            style = MaterialTheme.typography.headlineSmall
-        )
-        Spacer(Modifier.height(8.dp))
-        Text("الحساب يحفظ بياناتك ويتيح مزامنتها بين أجهزتك")
-        Spacer(Modifier.height(20.dp))
-
-        if (createAccount) {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it; error = null },
-                label = { Text("الاسم") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = phone,
-                onValueChange = { phone = it; error = null },
-                label = { Text("رقم الهاتف") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
-        }
-
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it; error = null },
-            label = { Text("البريد الإلكتروني") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it; error = null },
-            label = { Text("كلمة المرور") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        if (createAccount) {
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = confirmPassword,
-                onValueChange = { confirmPassword = it; error = null },
-                label = { Text("تأكيد كلمة المرور") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
-        error?.let {
-            Spacer(Modifier.height(8.dp))
-            Text(it, color = MaterialTheme.colorScheme.error)
-        }
-
-        Spacer(Modifier.height(16.dp))
-        Button(
-            enabled = !loading,
-            onClick = {
-                if (createAccount && password != confirmPassword) {
-                    error = context.getString(R.string.error_password_mismatch)
-                    return@Button
-                }
-                loading = true
-                scope.launch {
-                    val result = if (createAccount) {
-                        repository.signUpWithPassword(name, phone, email, password)
-                    } else {
-                        repository.signInWithPassword(email, password)
-                    }
-                    loading = false
-                    when (result) {
-                        is AuthResult.SignedIn -> {
-                            session = result.session
-                            onEnterApp()
-                        }
-                        is AuthResult.Failure -> error = result.message
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!resetLoading) showResetDialog = false },
+            title = { Text("استعادة كلمة المرور") },
+            text = {
+                Column {
+                    Text("أدخل بريد حسابك وسنرسل لك رابطًا لإعادة تعيين كلمة المرور.")
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it; resetMessage = null },
+                        label = { Text("البريد الإلكتروني") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    resetMessage?.let {
+                        Spacer(Modifier.height(8.dp))
+                        Text(it, color = MaterialTheme.colorScheme.error)
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            confirmButton = {
+                TextButton(
+                    enabled = !resetLoading,
+                    onClick = {
+                        resetLoading = true
+                        scope.launch {
+                            val result = repository.requestPasswordReset(email)
+                            resetLoading = false
+                            when (result) {
+                                is AuthResult.SignedIn -> resetMessage = "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني."
+                                is AuthResult.Failure -> resetMessage = result.message
+                            }
+                        }
+                    }
+                ) {
+                    if (resetLoading) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("إرسال الرابط")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !resetLoading, onClick = { showResetDialog = false }) { Text("إلغاء") }
+            }
+        )
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+                .background(Brush.verticalGradient(listOf(AuthPrimaryDark, AuthPrimary)))
+                .clip(RoundedCornerShape(bottomStart = 34.dp, bottomEnd = 34.dp)),
+            contentAlignment = Alignment.Center
         ) {
-            if (loading) CircularProgressIndicator(modifier = Modifier.height(20.dp))
-            else Text(if (createAccount) "إنشاء الحساب" else "تسجيل الدخول")
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(68.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.White.copy(alpha = 0.96f))
+                        .padding(10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                        contentDescription = "شعار حساب الخياطين",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("حساب الخياطين", color = Color.White, fontWeight = FontWeight.Bold)
+            }
         }
 
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(
-            enabled = !loading && !googleLoading,
-            onClick = onGoogleSignIn,
-            modifier = Modifier.fillMaxWidth()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 22.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(if (googleLoading) "جارٍ تسجيل الدخول..." else "المتابعة باستخدام Google")
-        }
+            Text(
+                text = if (createAccount) "إنشاء حساب جديد" else "مرحبًا بعودتك",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = AuthPrimaryDark
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = if (createAccount) "أنشئ حسابك لحفظ بياناتك ومزامنتها بأمان" else "سجّل الدخول للوصول إلى بياناتك ومتابعة عملك",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(18.dp))
 
-        Spacer(Modifier.height(8.dp))
-        TextButton(onClick = { createAccount = !createAccount; error = null }) {
-            Text(if (createAccount) "لدي حساب بالفعل" else "إنشاء حساب جديد")
+            if (createAccount) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; error = null },
+                    label = { Text("الاسم") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = authFieldColors()
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it; error = null },
+                    label = { Text("رقم الهاتف") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = authFieldColors()
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it; error = null; resetMessage = null },
+                label = { Text("البريد الإلكتروني") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = authFieldColors()
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it; error = null },
+                label = { Text("كلمة المرور") },
+                singleLine = true,
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    Text(
+                        text = if (passwordVisible) "🙈" else "👁️",
+                        modifier = Modifier
+                            .clickable { passwordVisible = !passwordVisible }
+                            .padding(8.dp),
+                        color = AuthPrimary
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = authFieldColors()
+            )
+
+            if (!createAccount) {
+                TextButton(
+                    onClick = { showResetDialog = true; resetMessage = null },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("نسيت كلمة المرور؟", color = AuthPrimary, fontWeight = FontWeight.SemiBold)
+                }
+            } else {
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it; error = null },
+                    label = { Text("تأكيد كلمة المرور") },
+                    singleLine = true,
+                    visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        Text(
+                            text = if (confirmPasswordVisible) "🙈" else "👁️",
+                            modifier = Modifier
+                                .clickable { confirmPasswordVisible = !confirmPasswordVisible }
+                                .padding(8.dp),
+                            color = AuthPrimary
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = authFieldColors()
+                )
+            }
+
+            error?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Button(
+                enabled = !loading && !googleLoading,
+                onClick = {
+                    if (createAccount && password != confirmPassword) {
+                        error = context.getString(R.string.error_password_mismatch)
+                        return@Button
+                    }
+                    loading = true
+                    scope.launch {
+                        val result = if (createAccount) {
+                            repository.signUpWithPassword(name, phone, email, password)
+                        } else {
+                            repository.signInWithPassword(email, password)
+                        }
+                        loading = false
+                        when (result) {
+                            is AuthResult.SignedIn -> {
+                                session = result.session
+                                onEnterApp()
+                            }
+                            is AuthResult.Failure -> error = result.message
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                if (loading) CircularProgressIndicator(modifier = Modifier.size(21.dp), color = Color.White, strokeWidth = 2.dp)
+                else Text(if (createAccount) "إنشاء الحساب" else "تسجيل الدخول", fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
+                Box(Modifier.height(1.dp).weight(1f).background(AuthFieldBorder))
+                Text("  أو  ", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Box(Modifier.height(1.dp).weight(1f).background(AuthFieldBorder))
+                Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+
+            OutlinedButton(
+                enabled = !loading && !googleLoading,
+                onClick = onGoogleSignIn,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.size(10.dp))
+                Text(if (googleLoading) "جارٍ تسجيل الدخول..." else "المتابعة باستخدام Google")
+            }
+
+            Spacer(Modifier.height(12.dp))
+            TextButton(onClick = { createAccount = !createAccount; error = null }) {
+                Text(
+                    if (createAccount) "لدي حساب بالفعل" else "ليس لديك حساب؟ سجل الآن",
+                    color = AuthPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "بمتابعتك فإنك توافق على شروط الخدمة وسياسة الخصوصية.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "🔄 تتم مزامنة بياناتك تلقائيًا عند توفر الإنترنت.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
+
+@Composable
+private fun authFieldColors() = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = AuthPrimary,
+    unfocusedBorderColor = AuthFieldBorder,
+    focusedLabelColor = AuthPrimary,
+    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    cursorColor = AuthPrimary
+)
