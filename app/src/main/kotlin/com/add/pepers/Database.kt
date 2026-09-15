@@ -1145,6 +1145,56 @@ SQLiteOpenHelper(
         )
     }
 
+    /**
+     * Copies numeric quantities from one existing day to another day in the same month.
+     * Expenses are intentionally not copied because they are day-specific.
+     *
+     * @return number of piece quantities copied.
+     */
+    fun copyNumericDay(monthId: Long, sourceDate: String, targetDate: String): Int {
+        if (sourceDate == targetDate) return 0
+
+        val sourceDayId = findDayId(monthId, sourceDate) ?: return 0
+        val targetDayId = getOrCreateDay(monthId, targetDate)
+        val db = writableDatabase
+        var copied = 0
+
+        db.beginTransaction()
+        try {
+            db.delete(TABLE_ENTRIES, "$COL_DAY_ID = ?", arrayOf(targetDayId.toString()))
+            db.query(
+                TABLE_ENTRIES,
+                arrayOf(COL_PIECE_ID, COL_QUANTITY, COL_UNIT_PRICE),
+                "$COL_DAY_ID = ? AND $COL_QUANTITY > 0",
+                arrayOf(sourceDayId.toString()),
+                null,
+                null,
+                null
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val values = ContentValues().apply {
+                        put(COL_DAY_ID, targetDayId)
+                        put(COL_PIECE_ID, cursor.getLong(0))
+                        put(COL_QUANTITY, cursor.getInt(1))
+                        put(COL_UNIT_PRICE, cursor.getInt(2))
+                    }
+                    db.insertWithOnConflict(
+                        TABLE_ENTRIES,
+                        null,
+                        values,
+                        SQLiteDatabase.CONFLICT_REPLACE
+                    )
+                    copied++
+                }
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+
+        return copied
+    }
+
     fun getIndividualEntries(monthId: Long, date: String): List<IndividualEntryRecord> {
         val result = mutableListOf<IndividualEntryRecord>()
         val dayId = findDayId(monthId, date) ?: return result
