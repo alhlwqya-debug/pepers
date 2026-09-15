@@ -52,6 +52,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+private enum class LedgerDayFilter {
+    ALL,
+    RECORDED,
+    EXPENSES
+}
+
 @Composable
 internal fun MainLedger(
     database: Database,
@@ -76,6 +82,7 @@ internal fun MainLedger(
     onDeleteShop: () -> Unit,
     onRenameMonth: () -> Unit,
     onCopyMonth: () -> Unit,
+    onCopyLastFilledDay: () -> Unit,
     onEditQuantity: (DayRecord, PieceRecord, String) -> Unit,
     onEditExpense: (DayRecord, String) -> Unit,
     onOpenExpense: (DayRecord) -> Unit,
@@ -85,6 +92,7 @@ internal fun MainLedger(
     val horizontal = rememberScrollState()
     var searchText by remember { mutableStateOf("") }
     var compactActions by remember { mutableStateOf(false) }
+    var dayFilter by remember { mutableStateOf(LedgerDayFilter.ALL) }
 
     val totalEarned = database.calculateMonthEarned(bundle)
     val totalExpenses = database.calculateMonthExpenses(bundle)
@@ -93,13 +101,20 @@ internal fun MainLedger(
     val shopName = shops.firstOrNull { it.id == selectedShopId }?.name ?: ""
 
     val normalizedQuery = searchText.trim().lowercase()
-    val visibleDays = if (normalizedQuery.isBlank()) {
+    val searchedDays = if (normalizedQuery.isBlank()) {
         bundle.days
     } else {
         bundle.days.filter { day ->
             day.date.lowercase().contains(normalizedQuery) ||
                 day.dayName.lowercase().contains(normalizedQuery)
         }
+    }
+    val visibleDays = when (dayFilter) {
+        LedgerDayFilter.ALL -> searchedDays
+        LedgerDayFilter.RECORDED -> searchedDays.filter { day ->
+            day.expense > 0 || day.quantities.values.any { it > 0 }
+        }
+        LedgerDayFilter.EXPENSES -> searchedDays.filter { it.expense > 0 }
     }
 
     Column(
@@ -204,6 +219,42 @@ internal fun MainLedger(
         }
 
         Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(top = 2.dp, bottom = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Button(
+                onClick = { dayFilter = LedgerDayFilter.ALL },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (dayFilter == LedgerDayFilter.ALL) Purple else AppSurfaceAlt,
+                    contentColor = if (dayFilter == LedgerDayFilter.ALL) Color.White else AppText
+                ),
+                contentPadding = PaddingValues(horizontal = 11.dp, vertical = 0.dp),
+                modifier = Modifier.height(30.dp)
+            ) { Text("كل الأيام", fontSize = 10.sp) }
+            Button(
+                onClick = { dayFilter = LedgerDayFilter.RECORDED },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (dayFilter == LedgerDayFilter.RECORDED) Green else AppSurfaceAlt,
+                    contentColor = if (dayFilter == LedgerDayFilter.RECORDED) Color.White else AppText
+                ),
+                contentPadding = PaddingValues(horizontal = 11.dp, vertical = 0.dp),
+                modifier = Modifier.height(30.dp)
+            ) { Text("الأيام المسجلة", fontSize = 10.sp) }
+            Button(
+                onClick = { dayFilter = LedgerDayFilter.EXPENSES },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (dayFilter == LedgerDayFilter.EXPENSES) Red else AppSurfaceAlt,
+                    contentColor = if (dayFilter == LedgerDayFilter.EXPENSES) Color.White else AppText
+                ),
+                contentPadding = PaddingValues(horizontal = 11.dp, vertical = 0.dp),
+                modifier = Modifier.height(30.dp)
+            ) { Text("أيام المصروفات", fontSize = 10.sp) }
+        }
+
+        Row(
             Modifier.fillMaxWidth().padding(vertical = 5.dp),
             horizontalArrangement = Arrangement.spacedBy(5.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -252,6 +303,9 @@ internal fun MainLedger(
                 OutlinedButton(onClick = onCopyMonth, contentPadding = PaddingValues(horizontal = 8.dp), modifier = Modifier.height(30.dp)) {
                     Text("نسخ الشهر", fontSize = 9.sp)
                 }
+                OutlinedButton(onClick = onCopyLastFilledDay, contentPadding = PaddingValues(horizontal = 8.dp), modifier = Modifier.height(30.dp)) {
+                    Text("نسخ آخر يوم", fontSize = 9.sp)
+                }
                 OutlinedButton(onClick = onDeleteMonth, contentPadding = PaddingValues(horizontal = 8.dp), modifier = Modifier.height(30.dp)) {
                     Text("حذف الشهر", color = Red, fontSize = 9.sp)
                 }
@@ -261,9 +315,9 @@ internal fun MainLedger(
             }
         }
 
-        if (searchText.isNotBlank()) {
+        if (searchText.isNotBlank() || dayFilter != LedgerDayFilter.ALL) {
             Text(
-                text = "النتائج: ${visibleDays.size} من ${bundle.days.size} يوم",
+                text = "المعروض: ${visibleDays.size} من ${bundle.days.size} يوم",
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
                 color = AppMuted,
                 fontSize = 10.sp
@@ -287,29 +341,44 @@ internal fun MainLedger(
                 }
 
                 LazyColumn(Modifier.fillMaxWidth()) {
-                    items(visibleDays, key = { it.id }) { day ->
-                        val earned = database.calculateDayEarned(day)
-                        val dayTotal = if (bundle.month.deductExpense) earned - day.expense else earned
-                        Row {
-                            CellText(day.dayName, wDay, rowH, size = 10)
-                            CellText(day.date, wDate, rowH, size = 10)
-                            pieces.forEach { piece ->
-                                val quantity = day.quantities[piece.id] ?: 0
-                                CellEdit(
-                                    value = if (quantity == 0) "" else quantity.toString(),
-                                    onValueChange = { value -> onEditQuantity(day, piece, value) },
-                                    width = wPiece,
-                                    height = rowH,
-                                    number = true
-                                )
-                            }
+                    if (visibleDays.isEmpty()) {
+                        item {
                             Box(
-                                Modifier.width(wExpense).height(rowH).border(1.dp, Color.Black).background(Color.White).clickable { onOpenExpense(day) },
+                                Modifier.fillMaxWidth().height(82.dp).background(AppSurfaceAlt),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(if (day.expense == 0) "" else day.expense.toString(), fontSize = 10.sp)
+                                Text(
+                                    "لا توجد أيام مطابقة لهذا العرض",
+                                    color = AppMuted,
+                                    fontSize = 11.sp
+                                )
                             }
-                            CellText(if (earned == 0) "" else dayTotal.toString(), wTotal, rowH, LightBlue, bold = true)
+                        }
+                    } else {
+                        items(visibleDays, key = { it.id }) { day ->
+                            val earned = database.calculateDayEarned(day)
+                            val dayTotal = if (bundle.month.deductExpense) earned - day.expense else earned
+                            Row {
+                                CellText(day.dayName, wDay, rowH, size = 10)
+                                CellText(day.date, wDate, rowH, size = 10)
+                                pieces.forEach { piece ->
+                                    val quantity = day.quantities[piece.id] ?: 0
+                                    CellEdit(
+                                        value = if (quantity == 0) "" else quantity.toString(),
+                                        onValueChange = { value -> onEditQuantity(day, piece, value) },
+                                        width = wPiece,
+                                        height = rowH,
+                                        number = true
+                                    )
+                                }
+                                Box(
+                                    Modifier.width(wExpense).height(rowH).border(1.dp, Color.Black).background(Color.White).clickable { onOpenExpense(day) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(if (day.expense == 0) "" else day.expense.toString(), fontSize = 10.sp)
+                                }
+                                CellText(if (earned == 0) "" else dayTotal.toString(), wTotal, rowH, LightBlue, bold = true)
+                            }
                         }
                     }
                 }
