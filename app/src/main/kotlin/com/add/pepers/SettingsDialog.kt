@@ -3,6 +3,7 @@ package com.add.pepers
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +59,7 @@ internal fun RegistrationSettingsDialog(
     var selectedMode by remember(currentMode) { mutableStateOf(currentMode) }
     var showApps by remember { mutableStateOf(false) }
     var showUpdates by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -64,7 +67,7 @@ internal fun RegistrationSettingsDialog(
         text = {
             Column(Modifier.fillMaxWidth()) {
                 Text(
-                    "إعدادات المحل وطريقة التسجيل والحماية والتحديثات في مكان واحد.",
+                    "إعدادات المحل وطريقة التسجيل والحماية والمزامنة والتحديثات في مكان واحد.",
                     fontSize = 12.sp,
                     color = Color.Gray
                 )
@@ -92,6 +95,14 @@ internal fun RegistrationSettingsDialog(
                     title = "🔒 الحماية والنسخ الاحتياطي",
                     description = "البصمة، رمز التطبيق والنسخ الاحتياطي.",
                     onClick = onSecurity
+                )
+                SettingsAction(
+                    title = "☁️ مزامنة البيانات الآن",
+                    description = "مزامنة بيانات المحل مع السحابة عند توفر الإنترنت.",
+                    onClick = {
+                        BackgroundSyncScheduler.requestNow(context)
+                        Toast.makeText(context, "تم طلب المزامنة. ستعمل عند توفر الإنترنت.", Toast.LENGTH_SHORT).show()
+                    }
                 )
                 SettingsAction(
                     title = "🔄 التحقق من وجود تحديثات",
@@ -202,12 +213,12 @@ private fun UpdateCheckerDialog(onDismiss: () -> Unit) {
         checking = true
         result = null
         scope.launch {
-            result = checkForPepersUpdate(context)
+            result = checkForPepersUpdate()
             checking = false
         }
     }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) { checkNow() }
+    LaunchedEffect(Unit) { checkNow() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -259,7 +270,7 @@ private data class UpdateResult(
     val releaseUrl: String? = null
 )
 
-private suspend fun checkForPepersUpdate(context: Context): UpdateResult = withContext(Dispatchers.IO) {
+private suspend fun checkForPepersUpdate(): UpdateResult = withContext(Dispatchers.IO) {
     runCatching {
         val connection = (URL(LATEST_RELEASE_API).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
