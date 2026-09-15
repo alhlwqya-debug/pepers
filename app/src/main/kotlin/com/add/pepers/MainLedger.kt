@@ -223,7 +223,8 @@ internal fun MainLedger(
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
                 .padding(top = 2.dp, bottom = 3.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Button(
                 onClick = { dayFilter = LedgerDayFilter.ALL },
@@ -252,6 +253,18 @@ internal fun MainLedger(
                 contentPadding = PaddingValues(horizontal = 11.dp, vertical = 0.dp),
                 modifier = Modifier.height(30.dp)
             ) { Text("أيام المصروفات", fontSize = 10.sp) }
+            if (searchText.isNotBlank() || dayFilter != LedgerDayFilter.ALL) {
+                TextButton(
+                    onClick = {
+                        searchText = ""
+                        dayFilter = LedgerDayFilter.ALL
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text("إعادة التصفية", color = Purple, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
 
         Row(
@@ -281,7 +294,7 @@ internal fun MainLedger(
                 onClick = { compactActions = !compactActions },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                 modifier = Modifier.height(34.dp)
-            ) { Text(if (compactActions) "المزيد" else "إدارة", fontSize = 10.sp) }
+            ) { Text(if (compactActions) "إخفاء الإدارة" else "إدارة", fontSize = 10.sp) }
         }
 
         if (compactActions) {
