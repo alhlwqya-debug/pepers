@@ -34,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -66,88 +65,33 @@ internal fun RegistrationSettingsDialog(
         title = { Text("إعدادات التطبيق", fontWeight = FontWeight.Bold) },
         text = {
             Column(Modifier.fillMaxWidth()) {
-                Text(
-                    "إعدادات المحل وطريقة التسجيل والحماية والمزامنة والتحديثات في مكان واحد.",
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
+                Text("إعدادات المحل وطريقة التسجيل والحماية والمزامنة والتحديثات في مكان واحد.", fontSize = 12.sp, color = Color.Gray)
                 Spacer(Modifier.height(10.dp))
-
                 Text("طريقة التسجيل", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                RegistrationModeOption(
-                    title = "تسجيل عددي",
-                    description = "جدول بالأيام والكميات والمصروف والمجموع.",
-                    selected = selectedMode == RegistrationMode.NUMERIC,
-                    onClick = { selectedMode = RegistrationMode.NUMERIC }
-                )
-                RegistrationModeOption(
-                    title = "تسجيل فردي",
-                    description = "سجل بأسماء الزبائن وأرقام الصفحات والكميات.",
-                    selected = selectedMode == RegistrationMode.INDIVIDUAL,
-                    onClick = { selectedMode = RegistrationMode.INDIVIDUAL }
-                )
-
+                RegistrationModeOption("تسجيل عددي", "جدول بالأيام والكميات والمصروف والمجموع.", selectedMode == RegistrationMode.NUMERIC) { selectedMode = RegistrationMode.NUMERIC }
+                RegistrationModeOption("تسجيل فردي", "سجل بأسماء الزبائن وأرقام الصفحات والكميات.", selectedMode == RegistrationMode.INDIVIDUAL) { selectedMode = RegistrationMode.INDIVIDUAL }
                 Spacer(Modifier.height(8.dp))
                 Divider()
                 Spacer(Modifier.height(8.dp))
-
-                SettingsAction(
-                    title = "🔒 الحماية والنسخ الاحتياطي",
-                    description = "البصمة، رمز التطبيق والنسخ الاحتياطي.",
-                    onClick = onSecurity
-                )
-                SettingsAction(
-                    title = "☁️ مزامنة البيانات الآن",
-                    description = "مزامنة بيانات المحل مع السحابة عند توفر الإنترنت.",
-                    onClick = {
-                        BackgroundSyncScheduler.requestNow(context)
-                        Toast.makeText(context, "تم طلب المزامنة. ستعمل عند توفر الإنترنت.", Toast.LENGTH_SHORT).show()
-                    }
-                )
-                SettingsAction(
-                    title = "🔄 التحقق من وجود تحديثات",
-                    description = "تحقق من أحدث إصدار منشور لتطبيق Pepers.",
-                    onClick = { showUpdates = true }
-                )
-                SettingsAction(
-                    title = "📱 تطبيقاتنا ومشاريعنا",
-                    description = "تصفح تطبيقاتنا ومشاريعنا من GitHub.",
-                    onClick = { showApps = true }
-                )
+                SettingsAction("🔒 الحماية والنسخ الاحتياطي", "البصمة، رمز التطبيق والنسخ الاحتياطي.", onSecurity)
+                SettingsAction("☁️ مزامنة البيانات الآن", "مزامنة بيانات المحل مع السحابة عند توفر الإنترنت.") {
+                    BackgroundSyncScheduler.requestNow(context)
+                    Toast.makeText(context, "تم طلب المزامنة. ستعمل عند توفر الإنترنت.", Toast.LENGTH_SHORT).show()
+                }
+                SettingsAction("🔄 التحقق من وجود تحديثات", "تحقق من أحدث إصدار منشور لتطبيق Pepers.") { showUpdates = true }
+                SettingsAction("📱 تطبيقاتنا ومشاريعنا", "تصفح تطبيقاتنا ومشاريعنا من GitHub.") { showApps = true }
             }
         },
-        confirmButton = {
-            Button(
-                onClick = { onSave(selectedMode) },
-                colors = ButtonDefaults.buttonColors(containerColor = Purple)
-            ) { Text("حفظ") }
-        },
+        confirmButton = { Button(onClick = { onSave(selectedMode) }, colors = ButtonDefaults.buttonColors(containerColor = Purple)) { Text("حفظ") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
     )
-
-    if (showApps) {
-        AppsAndProjectsDialog(onDismiss = { showApps = false })
-    }
-
-    if (showUpdates) {
-        UpdateCheckerDialog(onDismiss = { showUpdates = false })
-    }
+    if (showApps) AppsAndProjectsDialog { showApps = false }
+    if (showUpdates) UpdateCheckerDialog { showUpdates = false }
 }
 
 @Composable
-private fun SettingsAction(
-    title: String,
-    description: String,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF7F5FA))
-    ) {
+private fun SettingsAction(title: String, description: String, onClick: () -> Unit) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 3.dp).clickable(onClick = onClick), RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF7F5FA))) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(2.dp))
@@ -159,38 +103,17 @@ private fun SettingsAction(
 @Composable
 private fun AppsAndProjectsDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("تطبيقاتنا ومشاريعنا", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ProjectCard(
-                    title = "Pepers",
-                    description = "تطبيق إدارة حسابات وأعمال محلات الخياطة.",
-                    onClick = { openUrl(context, REPOSITORY_URL) }
-                )
-                ProjectCard(
-                    title = "مشاريعنا على GitHub",
-                    description = "الوصول إلى بقية التطبيقات والمشاريع المنشورة.",
-                    onClick = { openUrl(context, PROJECTS_URL) }
-                )
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } }
-    )
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("تطبيقاتنا ومشاريعنا", fontWeight = FontWeight.Bold) }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ProjectCard("Pepers", "تطبيق إدارة حسابات وأعمال محلات الخياطة.") { openUrl(context, REPOSITORY_URL) }
+            ProjectCard("مشاريعنا على GitHub", "الوصول إلى بقية التطبيقات والمشاريع المنشورة.") { openUrl(context, PROJECTS_URL) }
+        }
+    }, confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } })
 }
 
 @Composable
-private fun ProjectCard(
-    title: String,
-    description: String,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF7F5FA))
-    ) {
+private fun ProjectCard(title: String, description: String, onClick: () -> Unit) {
+    Card(Modifier.fillMaxWidth().clickable(onClick = onClick), RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF7F5FA))) {
         Column(Modifier.padding(12.dp)) {
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Purple)
             Spacer(Modifier.height(3.dp))
@@ -207,68 +130,41 @@ private fun UpdateCheckerDialog(onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     var checking by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<UpdateResult?>(null) }
-
     fun checkNow() {
         if (checking) return
         checking = true
         result = null
-        scope.launch {
-            result = checkForPepersUpdate()
-            checking = false
-        }
+        scope.launch { result = checkForPepersUpdate(); checking = false }
     }
-
     LaunchedEffect(Unit) { checkNow() }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("تحديث Pepers", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "الإصدار المثبت: ${currentVersion()}",
-                    modifier = Modifier.fillMaxWidth(),
-                    fontSize = 12.sp
-                )
-                Spacer(Modifier.height(10.dp))
-                if (checking) {
-                    CircularProgressIndicator(modifier = Modifier.padding(8.dp), strokeWidth = 3.dp)
-                    Text("جارٍ التحقق من أحدث إصدار...", fontSize = 12.sp)
-                } else {
-                    val state = result
-                    if (state == null) {
-                        Text("لم يتم إجراء التحقق بعد.", fontSize = 12.sp)
-                    } else {
-                        Text(
-                            state.message,
-                            modifier = Modifier.fillMaxWidth(),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        state.releaseUrl?.let { url ->
-                            Spacer(Modifier.height(8.dp))
-                            Button(
-                                onClick = { openUrl(context, url) },
-                                colors = ButtonDefaults.buttonColors(containerColor = Purple)
-                            ) { Text("فتح صفحة التحديث") }
-                        }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("تحديث Pepers", fontWeight = FontWeight.Bold) }, text = {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("الإصدار المثبت: ${currentVersion()}", Modifier.fillMaxWidth(), fontSize = 12.sp)
+            Spacer(Modifier.height(10.dp))
+            if (checking) {
+                CircularProgressIndicator(Modifier.padding(8.dp), strokeWidth = 3.dp)
+                Text("جارٍ التحقق من أحدث إصدار...", fontSize = 12.sp)
+            } else {
+                val state = result
+                if (state == null) Text("لم يتم إجراء التحقق بعد.", fontSize = 12.sp)
+                else {
+                    Text(state.message, Modifier.fillMaxWidth(), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    state.releaseUrl?.let { url ->
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = { openUrl(context, url) }, colors = ButtonDefaults.buttonColors(containerColor = Purple)) { Text("فتح صفحة التحديث") }
                     }
                 }
             }
-        },
-        confirmButton = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { checkNow() }, enabled = !checking) { Text("تحقق مرة أخرى") }
-                TextButton(onClick = onDismiss) { Text("إغلاق") }
-            }
         }
-    )
+    }, confirmButton = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { checkNow() }, enabled = !checking) { Text("تحقق مرة أخرى") }
+            TextButton(onClick = onDismiss) { Text("إغلاق") }
+        }
+    })
 }
 
-private data class UpdateResult(
-    val message: String,
-    val releaseUrl: String? = null
-)
+private data class UpdateResult(val message: String, val releaseUrl: String? = null)
 
 private suspend fun checkForPepersUpdate(): UpdateResult = withContext(Dispatchers.IO) {
     runCatching {
@@ -280,32 +176,25 @@ private suspend fun checkForPepersUpdate(): UpdateResult = withContext(Dispatche
             setRequestProperty("User-Agent", "Pepers-Android")
         }
         try {
-            if (connection.responseCode !in 200..299) {
-                return@withContext UpdateResult("تعذر الوصول إلى خادم التحديث الآن. تحقق من اتصال الإنترنت.")
-            }
+            if (connection.responseCode !in 200..299) return@withContext UpdateResult("تعذر الوصول إلى خادم التحديث الآن. تحقق من اتصال الإنترنت.")
             val body = connection.inputStream.bufferedReader().use { it.readText() }
             val json = JSONObject(body)
             val tag = json.optString("tag_name").trim().removePrefix("v")
             val url = json.optString("html_url").takeIf { it.isNotBlank() } ?: RELEASES_URL
-            if (tag.isBlank()) {
-                UpdateResult("لم يتم العثور على إصدار منشور حالياً.")
-            } else {
+            if (tag.isBlank()) UpdateResult("لم يتم العثور على إصدار منشور حالياً.")
+            else {
                 val current = currentVersion().removePrefix("v")
-                if (compareVersions(tag, current) > 0) {
-                    UpdateResult("يوجد تحديث جديد: الإصدار $tag (المثبت $current).", url)
-                } else {
-                    UpdateResult("أنت تستخدم أحدث إصدار منشور حالياً: $current.")
-                }
+                if (compareVersions(tag, current) > 0) UpdateResult("يوجد تحديث جديد: الإصدار $tag (المثبت $current).", url)
+                else UpdateResult("أنت تستخدم أحدث إصدار منشور حالياً: $current.")
             }
-        } finally {
-            connection.disconnect()
-        }
-    }.getOrElse {
-        UpdateResult("تعذر التحقق من التحديثات. تأكد من اتصال الإنترنت وحاول مرة أخرى.")
-    }
+        } finally { connection.disconnect() }
+    }.getOrElse { UpdateResult("تعذر التحقق من التحديثات. تأكد من اتصال الإنترنت وحاول مرة أخرى.") }
 }
 
-private fun currentVersion(): String = BuildConfig.VERSION_NAME
+// لا نعتمد على BuildConfig هنا، لأن بعض بيئات CodeAssist لا تنشئ الكلاس المولد قبل الترجمة.
+// يجب إبقاء هذه القيمة متطابقة مع versionName في app/build.gradle.kts.
+private const val CURRENT_APP_VERSION = "1.2.0"
+private fun currentVersion(): String = CURRENT_APP_VERSION
 
 private fun compareVersions(first: String, second: String): Int {
     val a = first.split('.', '-', '_').map { it.toIntOrNull() ?: 0 }
@@ -320,23 +209,12 @@ private fun compareVersions(first: String, second: String): Int {
 }
 
 private fun openUrl(context: Context, url: String) {
-    runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-    }
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 }
 
 @Composable
-private fun RegistrationModeOption(
-    title: String,
-    description: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
+private fun RegistrationModeOption(title: String, description: String, selected: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         RadioButton(selected = selected, onClick = onClick)
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold)
