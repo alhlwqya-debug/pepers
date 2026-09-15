@@ -244,15 +244,36 @@ internal fun SummaryCard(
 ) {
     Column(
         modifier = modifier
-        .clip(RoundedCornerShape(10.dp))
-        .background(bgColor)
-        .border(1.dp, AppBorder, RoundedCornerShape(10.dp))
-        .padding(horizontal = 5.dp, vertical = 8.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .background(bgColor)
+            .border(1.dp, AppBorder, RoundedCornerShape(12.dp))
+            .padding(horizontal = 6.dp, vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(title, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = AppText)
+        Text(
+            title,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            color = AppText,
+            maxLines = 1
+        )
         Spacer(Modifier.height(3.dp))
-        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textColor)
+        Text(
+            value,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = textColor,
+            maxLines = 1,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(4.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(textColor.copy(alpha = 0.35f))
+        )
     }
 }
 
@@ -266,4 +287,3 @@ internal fun SectionTitle(text: String) {
         modifier = Modifier.padding(vertical = 8.dp)
     )
 }
-
