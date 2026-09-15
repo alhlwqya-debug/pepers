@@ -349,6 +349,35 @@ fun WorkLogSheet() {
                     copyMonth = currentBundle.month.month.toString()
                     showCopyMonthDialog = true
                 },
+                 onCopyLastFilledDay = {
+                     val sourceDay = currentBundle.days.asReversed().firstOrNull { day ->
+                         day.quantities.values.any { it > 0 }
+                     }
+                     val targetDay = sourceDay?.let { source ->
+                         currentBundle.days.firstOrNull { day ->
+                             day.date > source.date &&
+                                 day.expense == 0 &&
+                                 day.quantities.values.none { it > 0 }
+                         }
+                     } ?: currentBundle.days.firstOrNull { day ->
+                         day.expense == 0 && day.quantities.values.none { it > 0 }
+                     }
+                     if (sourceDay == null || targetDay == null) {
+                         Toast.makeText(context, "لا يوجد يوم مسجل أو يوم فارغ للنسخ", Toast.LENGTH_SHORT).show()
+                     } else {
+                         val copied = database.copyNumericDay(
+                             currentBundle.month.id,
+                             sourceDay.date,
+                             targetDay.date
+                         )
+                         reloadBundle()
+                         Toast.makeText(
+                             context,
+                             if (copied > 0) "تم نسخ $copied قطعة إلى ${targetDay.date}" else "لا توجد كميات لنسخها",
+                             Toast.LENGTH_SHORT
+                         ).show()
+                     }
+                 },
                 onEditQuantity = { day, piece, value ->
                     database.setQuantity(
                         currentBundle.month.id,
