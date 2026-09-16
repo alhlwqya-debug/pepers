@@ -38,6 +38,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,7 +55,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.CompositionLocalProvider
 import com.add.pepers.cloud.SupabaseAuthRepository
 
 @Composable
@@ -78,6 +78,7 @@ internal fun DrawerContent(
     val currentShop = shops.firstOrNull { it.id == selectedShopId }
     var showSignOutDialog by remember { mutableStateOf(false) }
     var showShopSettings by remember { mutableStateOf(false) }
+    var showAppSettings by remember { mutableStateOf(false) }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Column(modifier.fillMaxHeight().background(AppSurface).verticalScroll(rememberScrollState()).padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -117,7 +118,7 @@ internal fun DrawerContent(
 
             Spacer(Modifier.height(13.dp)); DrawerSectionTitle("الوصول السريع"); Spacer(Modifier.height(6.dp))
             DrawerActionButton(text = "ملفي الشخصي", icon = "👤", tint = Purple, onClick = onUserProfile, outlined = false)
-            Spacer(Modifier.height(6.dp)); DrawerActionButton(text = "إعدادات التسجيل", icon = "⚙", tint = AppText, onClick = onSettings, outlined = true)
+            Spacer(Modifier.height(6.dp)); DrawerActionButton(text = "إعدادات التطبيق", icon = "⚙", tint = AppText, onClick = { showAppSettings = true }, outlined = true)
             Spacer(Modifier.height(6.dp)); DrawerActionButton(text = "الإحصائيات", icon = "▥", tint = AppText, onClick = onStatistics, outlined = true)
 
             Spacer(Modifier.height(13.dp)); DrawerSectionTitle("المساعدة والمعلومات"); Spacer(Modifier.height(6.dp))
@@ -132,6 +133,15 @@ internal fun DrawerContent(
         }
     }
 
+    if (showAppSettings) {
+        AppSettingsDialog(
+            onDismiss = { showAppSettings = false },
+            onRegistrationSettings = { showAppSettings = false; onSettings() },
+            onSecuritySettings = { showAppSettings = false; onSettings() },
+            onAbout = { showAppSettings = false; onAbout() },
+            onHelp = { showAppSettings = false; onHelp() }
+        )
+    }
     if (showShopSettings) ShopSettingsDialog(shop = currentShop, onDismiss = { showShopSettings = false }, onDelete = { showShopSettings = false; onDeleteShop() })
     if (showSignOutDialog) AlertDialog(onDismissRequest = { showSignOutDialog = false }, title = { Text("تسجيل الخروج", fontWeight = FontWeight.Bold) }, text = { Text("سيتم حفظ بيانات هذا الحساب على الجهاز ثم تسجيل الخروج. عند تسجيل الدخول بحساب آخر سيتم تحميل بياناته الخاصة فقط.") }, confirmButton = { Button(onClick = { showSignOutDialog = false; onClose(); runCatching { SupabaseAuthRepository(context.applicationContext).clearSession(); (context as? Activity)?.recreate() } }, colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("تسجيل الخروج") } }, dismissButton = { TextButton(onClick = { showSignOutDialog = false }) { Text("إلغاء") } })
 }
