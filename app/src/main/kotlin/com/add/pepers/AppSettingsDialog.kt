@@ -53,6 +53,7 @@ internal fun AppSettingsDialog(
     onDismiss: () -> Unit,
     onUserProfile: () -> Unit,
     onSecuritySettings: () -> Unit,
+    onBackupSettings: () -> Unit,
     onAbout: () -> Unit,
     onHelp: () -> Unit
 ) {
@@ -61,20 +62,13 @@ internal fun AppSettingsDialog(
     var reminderEnabled by remember { mutableStateOf(prefs.getBoolean(DAILY_REMINDER_KEY, true)) }
     var updateState by remember { mutableStateOf("لم يتم التحقق بعد") }
     var checkingUpdate by remember { mutableStateOf(false) }
-
-    // Read the installed version through PackageManager instead of BuildConfig.
-    // This also works reliably in lightweight IDEs such as CodeAssist where
-    // generated BuildConfig sources may not be indexed during compilation.
     val currentVersion = remember(context) {
         runCatching {
             @Suppress("DEPRECATION")
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull()?.removePrefix("v") ?: "غير معروف"
     }
-
-    fun openUrl(url: String) {
-        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-    }
+    fun openUrl(url: String) { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } }
 
     LaunchedEffect(checkingUpdate) {
         if (!checkingUpdate) return@LaunchedEffect
@@ -90,24 +84,14 @@ internal fun AppSettingsDialog(
                 try {
                     if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}")
                     val body = connection.inputStream.bufferedReader().use { it.readText() }
-                    val tag = Regex("\\\"tag_name\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"").find(body)?.groupValues?.get(1)
+                    Regex("\\\"tag_name\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"").find(body)?.groupValues?.get(1)?.removePrefix("v")
                         ?: error("لم يتم العثور على رقم الإصدار")
-                    tag.removePrefix("v")
-                } finally {
-                    connection.disconnect()
-                }
+                } finally { connection.disconnect() }
             }
         }
         checkingUpdate = false
-        result.onSuccess { latest ->
-            updateState = if (latest != currentVersion) {
-                "يتوفر إصدار أحدث: $latest (الإصدار الحالي $currentVersion)"
-            } else {
-                "أنت تستخدم أحدث إصدار ($currentVersion)"
-            }
-        }.onFailure {
-            updateState = "تعذر التحقق الآن. تحقق من اتصال الإنترنت."
-        }
+        result.onSuccess { latest -> updateState = if (latest != currentVersion) "يتوفر إصدار أحدث: $latest (الإصدار الحالي $currentVersion)" else "أنت تستخدم أحدث إصدار ($currentVersion)" }
+            .onFailure { updateState = "تعذر التحقق الآن. تحقق من اتصال الإنترنت." }
     }
 
     CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -124,11 +108,11 @@ internal fun AppSettingsDialog(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettingsGroupTitle("الحساب")
                     SettingsAction("👤", "ملفي الشخصي", "الاسم ورقم الهاتف والبريد ومعلومات الملف") { onUserProfile(); onDismiss() }
-
                     SettingsGroupTitle("البيانات والمزامنة")
                     SettingsAction("☁", "المزامنة السحابية", "تعمل تلقائيًا عند توفر الشبكة وفي الخلفية") { BackgroundSyncScheduler.requestNow(context); onDismiss() }
-                    SettingsAction("🔐", "الأمان والنسخ الاحتياطي", "قفل التطبيق والنسخ والاستعادة") { onSecuritySettings(); onDismiss() }
-
+                    SettingsGroupTitle("الأمان والبيانات المحلية")
+                    SettingsAction("🔐", "الأمان", "قفل التطبيق والبصمة أو قفل الجهاز ورمز PIN") { onSecuritySettings(); onDismiss() }
+                    SettingsAction("💾", "النسخ الاحتياطي والاستعادة", "إنشاء نسخة احتياطية أو استعادة بيانات المحل") { onBackupSettings(); onDismiss() }
                     SettingsGroupTitle("الإشعارات والتذكير")
                     Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F7FA))) {
                         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -143,18 +127,15 @@ internal fun AppSettingsDialog(
                             })
                         }
                     }
-
                     SettingsGroupTitle("المساعدة والمعلومات")
                     SettingsAction("❓", "مساعدة ودليل الاستخدام", "تعرف على وظائف التطبيق وطريقة الاستخدام") { onHelp(); onDismiss() }
                     SettingsAction("💬", "تواصل حول التطبيق", "فتح صفحة الدعم والمشكلات في GitHub") { openUrl(ISSUES_URL) }
                     SettingsAction("ℹ", "من نحن", "فكرة التطبيق وتطويره ومعلومات الملكية") { onAbout(); onDismiss() }
                     SettingsAction("📜", "التراخيص والملكية", "عرض ترخيص المشروع ومعلومات المكونات") { openUrl(LICENSE_URL) }
-
                     SettingsGroupTitle("التحديثات والمشاريع")
                     SettingsAction("↻", "التحقق من وجود تحديث", updateState) { if (!checkingUpdate) { checkingUpdate = true; updateState = "جارٍ التحقق من آخر إصدار…" } }
                     if (checkingUpdate) CircularProgressIndicator(modifier = Modifier.size(20.dp).align(Alignment.CenterHorizontally), strokeWidth = 2.dp)
                     SettingsAction("▦", "المزيد من التطبيقات", "استعراض مشاريع وتطبيقات المطور") { openUrl(REPOSITORIES_URL) }
-
                     HorizontalDivider(Modifier.padding(top = 4.dp))
                     Text("Pepers — الإصدار $currentVersion", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 10.sp, color = Color.Gray)
                     Text("فكرة وتطوير المهندس أحمد عبدالودود الدبعي", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Purple)
@@ -166,13 +147,9 @@ internal fun AppSettingsDialog(
     }
 }
 
-@Composable
-private fun SettingsGroupTitle(text: String) {
-    Text(text, Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 2.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Purple, textAlign = TextAlign.Right)
-}
+@Composable private fun SettingsGroupTitle(text: String) { Text(text, Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 2.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Purple, textAlign = TextAlign.Right) }
 
-@Composable
-private fun SettingsAction(icon: String, title: String, description: String, onClick: () -> Unit) {
+@Composable private fun SettingsAction(icon: String, title: String, description: String, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F7FA))) {
         Row(Modifier.fillMaxWidth().padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(icon, fontSize = 20.sp, modifier = Modifier.size(28.dp), textAlign = TextAlign.Center)
