@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
@@ -216,7 +215,7 @@ private fun ShopSettingsDialog(
             onDismiss = { showRegistrationSettings = false },
             onSecurity = { showRegistrationSettings = false },
             onSave = { mode ->
-                Database(context = LocalContext.current.applicationContext).updateShopRegistrationMode(shop.id, mode)
+                Database(context.applicationContext).updateShopRegistrationMode(shop.id, mode)
                 selectedMode = mode
                 showRegistrationSettings = false
                 onRegistrationModeChanged(shop.id)
