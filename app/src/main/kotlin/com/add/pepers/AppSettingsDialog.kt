@@ -20,8 +20,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
@@ -67,13 +66,6 @@ internal fun AppSettingsDialog(
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     }
 
-    fun checkForUpdate() {
-        if (checkingUpdate) return
-        checkingUpdate = true
-        updateState = "جارٍ التحقق من آخر إصدار…"
-        androidx.compose.runtime.LaunchedEffect(Unit) { }
-    }
-
     LaunchedEffect(checkingUpdate) {
         if (!checkingUpdate) return@LaunchedEffect
         val result = withContext(Dispatchers.IO) {
@@ -105,7 +97,7 @@ internal fun AppSettingsDialog(
         }
     }
 
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+    CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides LayoutDirection.Rtl) {
         AlertDialog(
             onDismissRequest = onDismiss,
             title = {
@@ -144,7 +136,7 @@ internal fun AppSettingsDialog(
                     SettingsAction("📜", "التراخيص والملكية", "عرض صفحة الترخيص ومعلومات الملكية") { openUrl(LICENSE_URL) }
 
                     SettingsGroupTitle("التحديثات والمشاريع")
-                    SettingsAction("↻", "التحقق من وجود تحديث", updateState) { checkForUpdate() }
+                    SettingsAction("↻", "التحقق من وجود تحديث", updateState) { if (!checkingUpdate) { checkingUpdate = true; updateState = "جارٍ التحقق من آخر إصدار…" } }
                     if (checkingUpdate) CircularProgressIndicator(modifier = Modifier.size(20.dp).align(Alignment.CenterHorizontally), strokeWidth = 2.dp)
                     SettingsAction("▦", "المزيد من التطبيقات", "استعراض مشاريع وتطبيقات المطور") { openUrl(REPOSITORIES_URL) }
 
