@@ -132,8 +132,8 @@ internal fun AppSettingsDialog(
                     SettingsGroupTitle("المساعدة والمعلومات")
                     SettingsAction("❓", "مساعدة ودليل الاستخدام", "تعرف على وظائف التطبيق وطريقة الاستخدام") { onHelp(); onDismiss() }
                     SettingsAction("💬", "تواصل حول التطبيق", "فتح صفحة الدعم والمشكلات في GitHub") { openUrl(ISSUES_URL) }
-                    SettingsAction("ℹ", "من نحن", "معلومات عن فكرة التطبيق وتطويره") { onAbout(); onDismiss() }
-                    SettingsAction("📜", "التراخيص والملكية", "عرض صفحة الترخيص ومعلومات الملكية") { openUrl(LICENSE_URL) }
+                    SettingsAction("ℹ", "من نحن", "فكرة التطبيق وتطويره ومعلومات الملكية") { onAbout(); onDismiss() }
+                    SettingsAction("📜", "التراخيص والملكية", "عرض ترخيص المشروع ومعلومات المكونات") { openUrl(LICENSE_URL) }
 
                     SettingsGroupTitle("التحديثات والمشاريع")
                     SettingsAction("↻", "التحقق من وجود تحديث", updateState) { if (!checkingUpdate) { checkingUpdate = true; updateState = "جارٍ التحقق من آخر إصدار…" } }
@@ -142,6 +142,8 @@ internal fun AppSettingsDialog(
 
                     HorizontalDivider(Modifier.padding(top = 4.dp))
                     Text("Pepers — الإصدار ${BuildConfig.VERSION_NAME}", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 10.sp, color = Color.Gray)
+                    Text("فكرة وتطوير المهندس أحمد عبدالودود الدبعي", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Purple)
+                    Text("الاسم والهوية والتصميم والمساهمات الأصلية تخضع للحقوق والتراخيص المبينة في المشروع، بينما تبقى مكونات الطرف الثالث خاضعة لتراخيصها الخاصة.", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 9.sp, color = Color.Gray, lineHeight = 14.sp)
                 }
             },
             confirmButton = { Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = Purple)) { Text("إغلاق") } }
