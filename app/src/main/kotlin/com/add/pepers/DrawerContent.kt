@@ -136,6 +136,7 @@ internal fun DrawerContent(
     if (showAppSettings) {
         AppSettingsDialog(
             onDismiss = { showAppSettings = false },
+            onUserProfile = { showAppSettings = false; onUserProfile() },
             onRegistrationSettings = { showAppSettings = false; onSettings() },
             onSecuritySettings = { showAppSettings = false; onSettings() },
             onAbout = { showAppSettings = false; onAbout() },
@@ -147,7 +148,8 @@ internal fun DrawerContent(
 }
 
 @Composable private fun DrawerSectionTitle(text: String) { Text(text, Modifier.fillMaxWidth().padding(horizontal = 4.dp), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AppMuted, textAlign = TextAlign.Right) }
-@Composable private fun EmptyDrawerState(text: String) { Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(12.dp)).background(AppSurfaceAlt).border(1.dp, AppBorder, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { Text(text, fontSize = 11.sp, color = Color.Gray) } }
+@Composable private fun EmptyDrawerState(text: String) { Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(12.dp)).background(AppSurfaceAlt).border(1.dp, AppBorder, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { Text(text, fontSize = 11.sp, color = Color.Gray) }
+}
 
 @Composable
 private fun DrawerGlyph(icon: String, tint: Color) { Text(icon, color = tint, fontSize = 20.sp, textAlign = TextAlign.Center, modifier = Modifier.size(24.dp)) }
