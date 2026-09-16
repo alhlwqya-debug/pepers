@@ -14,6 +14,14 @@ import java.util.Calendar
 class WorkReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val appContext = context.applicationContext
+        val prefs = appContext.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE)
+        val enabled = prefs.getBoolean("daily_work_reminder_enabled", true)
+
+        if (!enabled) {
+            WorkReminderScheduler.cancel(appContext)
+            return
+        }
+
         val session = SupabaseAuthRepository(appContext).savedSession()
 
         // Never inspect or back up a user's local database while no account is
@@ -68,10 +76,10 @@ class WorkReminderReceiver : BroadcastReceiver() {
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentTitle("تذكير تسجيل العمل")
-            .setContentText("لم تقم بتسجيل العمل اليوم، قم بتسجيل عملك")
+            .setContentText("نسيت تسجيل عمل اليوم؟ افتح Pepers وسجّل عملك الآن")
             .setStyle(
                 NotificationCompat.BigTextStyle()
-                    .bigText("لم تقم بتسجيل العمل اليوم، قم بتسجيل عملك")
+                    .bigText("نسيت تسجيل عمل اليوم؟ افتح Pepers وسجّل عملك الآن")
             )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
@@ -99,6 +107,9 @@ object WorkReminderScheduler {
     private const val MINUTE = 0
 
     fun schedule(context: Context) {
+        val prefs = context.applicationContext.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("daily_work_reminder_enabled", true)) return
+
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
         val intent = Intent(context, WorkReminderReceiver::class.java)
         val pendingIntent = PendingIntent.getBroadcast(
