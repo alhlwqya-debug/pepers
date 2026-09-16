@@ -52,7 +52,6 @@ private const val LICENSE_URL = "https://github.com/alhlwqya-debug/pepers/blob/m
 internal fun AppSettingsDialog(
     onDismiss: () -> Unit,
     onUserProfile: () -> Unit,
-    onRegistrationSettings: () -> Unit,
     onSecuritySettings: () -> Unit,
     onAbout: () -> Unit,
     onHelp: () -> Unit
@@ -129,7 +128,6 @@ internal fun AppSettingsDialog(
                     SettingsGroupTitle("البيانات والمزامنة")
                     SettingsAction("☁", "المزامنة السحابية", "تعمل تلقائيًا عند توفر الشبكة وفي الخلفية") { BackgroundSyncScheduler.requestNow(context); onDismiss() }
                     SettingsAction("🔐", "الأمان والنسخ الاحتياطي", "قفل التطبيق والنسخ والاستعادة") { onSecuritySettings(); onDismiss() }
-                    SettingsAction("🔢", "طريقة التسجيل", "تسجيل عددي أو تسجيل فردي") { onRegistrationSettings(); onDismiss() }
 
                     SettingsGroupTitle("الإشعارات والتذكير")
                     Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F7FA))) {
