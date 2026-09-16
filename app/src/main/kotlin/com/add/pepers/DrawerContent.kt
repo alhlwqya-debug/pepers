@@ -137,13 +137,22 @@ internal fun DrawerContent(
         AppSettingsDialog(
             onDismiss = { showAppSettings = false },
             onUserProfile = { showAppSettings = false; onUserProfile() },
-            onRegistrationSettings = { showAppSettings = false; onSettings() },
             onSecuritySettings = { showAppSettings = false; onSettings() },
             onAbout = { showAppSettings = false; onAbout() },
             onHelp = { showAppSettings = false; onHelp() }
         )
     }
-    if (showShopSettings) ShopSettingsDialog(shop = currentShop, onDismiss = { showShopSettings = false }, onDelete = { showShopSettings = false; onDeleteShop() })
+    if (showShopSettings) {
+        ShopSettingsDialog(
+            shop = currentShop,
+            onDismiss = { showShopSettings = false },
+            onDelete = { showShopSettings = false; onDeleteShop() },
+            onRegistrationModeChanged = { shopId ->
+                showShopSettings = false
+                onSelectShop(shopId)
+            }
+        )
+    }
     if (showSignOutDialog) AlertDialog(onDismissRequest = { showSignOutDialog = false }, title = { Text("تسجيل الخروج", fontWeight = FontWeight.Bold) }, text = { Text("سيتم حفظ بيانات هذا الحساب على الجهاز ثم تسجيل الخروج. عند تسجيل الدخول بحساب آخر سيتم تحميل بياناته الخاصة فقط.") }, confirmButton = { Button(onClick = { showSignOutDialog = false; onClose(); runCatching { SupabaseAuthRepository(context.applicationContext).clearSession(); (context as? Activity)?.recreate() } }, colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("تسجيل الخروج") } }, dismissButton = { TextButton(onClick = { showSignOutDialog = false }) { Text("إلغاء") } })
 }
 
@@ -168,15 +177,53 @@ private fun DrawerActionButton(text: String, icon: String, tint: Color, onClick:
 }
 
 @Composable
-private fun ShopSettingsDialog(shop: ShopRecord?, onDismiss: () -> Unit, onDelete: () -> Unit) {
+private fun ShopSettingsDialog(
+    shop: ShopRecord?,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+    onRegistrationModeChanged: (Long) -> Unit
+) {
     var confirmDelete by remember { mutableStateOf(false) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("إعدادات المحل", fontWeight = FontWeight.Bold) }, text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        ShopInfoCard("اسم المحل", shop?.name ?: "لا يوجد محل محدد")
-        ShopInfoCard("طريقة التسجيل", if (shop?.registrationMode == RegistrationMode.INDIVIDUAL) "تسجيل فردي" else "تسجيل عددي")
-        Text("منطقة العمليات الخطرة", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Red)
-        Text("حذف المحل سيزيل بياناته المحلية. خيار الحذف غير موجود في القائمة الرئيسية لتقليل الحذف بالخطأ.", fontSize = 10.sp, color = Color.Gray)
-        OutlinedButton(onClick = { confirmDelete = true }, enabled = shop != null, modifier = Modifier.fillMaxWidth(), border = androidx.compose.foundation.BorderStroke(1.dp, Red), colors = ButtonDefaults.outlinedButtonColors(contentColor = Red)) { Text("حذف المحل الحالي") }
-    } }, confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } })
+    var showRegistrationSettings by remember { mutableStateOf(false) }
+    var selectedMode by remember(shop) { mutableStateOf(shop?.registrationMode ?: RegistrationMode.NUMERIC) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("إعدادات المحل", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                ShopInfoCard("اسم المحل", shop?.name ?: "لا يوجد محل محدد")
+                ShopInfoCard("طريقة التسجيل", if (selectedMode == RegistrationMode.INDIVIDUAL) "تسجيل فردي" else "تسجيل عددي")
+                OutlinedButton(
+                    onClick = { if (shop != null) showRegistrationSettings = true },
+                    enabled = shop != null,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("تغيير طريقة التسجيل")
+                }
+                Text("تغيير طريقة التسجيل خاص بهذا المحل فقط، ولا يغيّر إعدادات المحلات الأخرى.", fontSize = 10.sp, color = Color.Gray, textAlign = TextAlign.Right)
+                Text("منطقة العمليات الخطرة", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Red)
+                Text("حذف المحل سيزيل بياناته المحلية. خيار الحذف غير موجود في القائمة الرئيسية لتقليل الحذف بالخطأ.", fontSize = 10.sp, color = Color.Gray)
+                OutlinedButton(onClick = { confirmDelete = true }, enabled = shop != null, modifier = Modifier.fillMaxWidth(), border = androidx.compose.foundation.BorderStroke(1.dp, Red), colors = ButtonDefaults.outlinedButtonColors(contentColor = Red)) { Text("حذف المحل الحالي") }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } }
+    )
+
+    if (showRegistrationSettings && shop != null) {
+        RegistrationSettingsDialog(
+            currentMode = selectedMode,
+            onDismiss = { showRegistrationSettings = false },
+            onSecurity = { showRegistrationSettings = false },
+            onSave = { mode ->
+                Database(context = LocalContext.current.applicationContext).updateShopRegistrationMode(shop.id, mode)
+                selectedMode = mode
+                showRegistrationSettings = false
+                onRegistrationModeChanged(shop.id)
+            }
+        )
+    }
+
     if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, title = { Text("تأكيد حذف المحل", fontWeight = FontWeight.Bold) }, text = { Text("هل أنت متأكد من حذف «${shop?.name ?: "المحل"}»؟ هذا الإجراء قد يحذف سجلاته المرتبطة ولا يمكن التراجع عنه.") }, confirmButton = { Button(onClick = { confirmDelete = false; onDelete() }, colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("حذف نهائي") } }, dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("إلغاء") } })
 }
 
