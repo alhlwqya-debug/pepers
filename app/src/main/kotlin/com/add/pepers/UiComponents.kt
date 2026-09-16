@@ -39,6 +39,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -65,11 +66,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -197,6 +200,14 @@ internal fun CellText(
     }
 }
 
+/**
+ * خلية إدخال قابلة للتحرير.
+ *
+ * مهم: لا نحفظ القيمة في قاعدة البيانات مع كل ضغطة مفتاح.
+ * هذا يسمح للمستخدم بكتابة المسافات بشكل طبيعي، مثل:
+ * "علي الدبعي" بدلاً من "عليالدبعي".
+ * عند فقدان التركيز أو الضغط على تم، يتم حفظ النص مرة واحدة.
+ */
 @Composable
 internal fun CellEdit(
     value: String,
@@ -206,30 +217,48 @@ internal fun CellEdit(
     bg: Color = Color.White,
     number: Boolean = false
 ) {
+    var draft by remember(value) { mutableStateOf(value) }
+    var isFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(value) {
+        if (!isFocused) draft = value
+    }
+
+    fun commit() {
+        if (draft != value) onValueChange(draft)
+    }
+
     Box(
         modifier = Modifier
-        .width(width)
-        .height(height)
-        .border(1.dp, Color.Black)
-        .background(bg)
-        .padding(horizontal = 4.dp),
+            .width(width)
+            .height(height)
+            .border(1.dp, Color.Black)
+            .background(bg)
+            .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
+            value = draft,
+            onValueChange = { draft = if (number) it.filter(Char::isDigit) else it },
             singleLine = true,
             keyboardOptions = if (number) {
-                KeyboardOptions(keyboardType = KeyboardType.Number)
+                KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done)
             } else {
-                KeyboardOptions.Default
+                KeyboardOptions.Default.copy(imeAction = ImeAction.Done)
             },
+            keyboardActions = KeyboardActions(onDone = { commit() }),
             textStyle = TextStyle(
                 fontSize = 11.sp,
                 color = Color.Black,
                 textAlign = TextAlign.Center
             ),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { state ->
+                    val wasFocused = isFocused
+                    isFocused = state.isFocused
+                    if (wasFocused && !state.isFocused) commit()
+                }
         )
     }
 }
