@@ -1,24 +1,38 @@
 package com.add.pepers
 
-import android.app.Activity
 import android.content.Context
 import android.net.Uri
 import android.os.Build
-import android.provider.Settings
 import android.util.Base64
-import android.widget.Toast
 import androidx.biometric.BiometricManager
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -28,11 +42,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
@@ -54,34 +69,21 @@ import android.security.keystore.KeyProperties
 private const val SECURITY_PREFS = "app_security"
 private const val PIN_HASH = "pin_hash"
 private const val BIOMETRIC_LOCK_ENABLED = "biometric_lock_enabled"
+private const val BACKUP_PREFS = "backup_meta"
+private const val LAST_BACKUP_AT = "last_backup_at"
 private const val PIN_KEY_ALIAS = "pepers_app_pin"
 
-/** Returns true when either PIN protection or biometric/device-lock protection is enabled. */
 internal fun hasAppPin(context: Context): Boolean {
     val prefs = context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
-    return prefs.getString(PIN_HASH, null).orEmpty().isNotBlank() ||
-        prefs.getBoolean(BIOMETRIC_LOCK_ENABLED, false)
+    return prefs.getString(PIN_HASH, null).orEmpty().isNotBlank() || prefs.getBoolean(BIOMETRIC_LOCK_ENABLED, false)
 }
 
-internal fun isBiometricLockEnabled(context: Context): Boolean =
-    context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
-        .getBoolean(BIOMETRIC_LOCK_ENABLED, false)
+internal fun isBiometricLockEnabled(context: Context): Boolean = context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).getBoolean(BIOMETRIC_LOCK_ENABLED, false)
+internal fun setBiometricLockEnabled(context: Context, enabled: Boolean) { context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).edit().putBoolean(BIOMETRIC_LOCK_ENABLED, enabled).apply() }
 
-internal fun setBiometricLockEnabled(context: Context, enabled: Boolean) {
-    context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
-        .edit().putBoolean(BIOMETRIC_LOCK_ENABLED, enabled).apply()
-}
-
-internal fun isDeviceLockAvailable(context: Context): Boolean {
-    return try {
-        BiometricManager.from(context).canAuthenticate(
-            BiometricManager.Authenticators.BIOMETRIC_WEAK or
-                BiometricManager.Authenticators.DEVICE_CREDENTIAL
-        ) == BiometricManager.BIOMETRIC_SUCCESS
-    } catch (_: Exception) {
-        false
-    }
-}
+internal fun isDeviceLockAvailable(context: Context): Boolean = try {
+    BiometricManager.from(context).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+} catch (_: Exception) { false }
 
 private fun legacyHashPin(pin: String): String {
     val digest = MessageDigest.getInstance("SHA-256").digest(pin.toByteArray(Charsets.UTF_8))
@@ -90,38 +92,26 @@ private fun legacyHashPin(pin: String): String {
 
 private fun keystoreKey(): SecretKey? {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null
-    val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-    (keyStore.getKey(PIN_KEY_ALIAS, null) as? SecretKey)?.let { return it }
+    val store = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    (store.getKey(PIN_KEY_ALIAS, null) as? SecretKey)?.let { return it }
     val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256, "AndroidKeyStore")
     generator.init(KeyGenParameterSpec.Builder(PIN_KEY_ALIAS, KeyProperties.PURPOSE_SIGN).setDigests(KeyProperties.DIGEST_SHA256).build())
     return generator.generateKey()
 }
 
-private fun hashPin(pin: String): String {
-    return try {
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(keystoreKey() ?: return legacyHashPin(pin))
-        Base64.encodeToString(mac.doFinal(pin.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
-    } catch (_: Exception) {
-        legacyHashPin(pin)
-    }
-}
+private fun hashPin(pin: String): String = try {
+    val mac = Mac.getInstance("HmacSHA256")
+    mac.init(keystoreKey() ?: return legacyHashPin(pin))
+    Base64.encodeToString(mac.doFinal(pin.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
+} catch (_: Exception) { legacyHashPin(pin) }
 
-internal fun setAppPin(context: Context, pin: String) {
-    context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).edit().putString(PIN_HASH, hashPin(pin)).apply()
-}
-
-internal fun clearAppPin(context: Context) {
-    context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).edit().remove(PIN_HASH).apply()
-}
+internal fun setAppPin(context: Context, pin: String) { context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).edit().putString(PIN_HASH, hashPin(pin)).apply() }
+internal fun clearAppPin(context: Context) { context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).edit().remove(PIN_HASH).apply() }
 
 internal fun verifyAppPin(context: Context, pin: String): Boolean {
     val stored = context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).getString(PIN_HASH, "").orEmpty()
     if (stored == hashPin(pin)) return true
-    if (stored == legacyHashPin(pin)) {
-        setAppPin(context, pin)
-        return true
-    }
+    if (stored == legacyHashPin(pin)) { setAppPin(context, pin); return true }
     return false
 }
 
@@ -130,218 +120,81 @@ internal fun AppLockScreen(context: Context, onUnlocked: () -> Unit, onUseDevice
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     val biometricEnabled = isBiometricLockEnabled(context)
-    Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
-        Text("🔒 التطبيق مقفل", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            if (biometricEnabled) "استخدم البصمة أو قفل الجهاز لفتح التطبيق، أو أدخل رمز PIN." else "أدخل رمز الحماية للوصول إلى الحسابات والبيانات.",
-            fontSize = 12.sp,
-            color = Color.Gray
-        )
-        Spacer(Modifier.height(18.dp))
-        OutlinedTextField(
-            value = pin,
-            onValueChange = { pin = it.filter(Char::isDigit).take(8); error = "" },
-            label = { Text("رمز القفل") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            modifier = Modifier.fillMaxWidth()
-        )
-        if (error.isNotBlank()) {
-            Spacer(Modifier.height(6.dp))
-            Text(error, color = Color(0xFFC62828), fontSize = 11.sp)
+    Column(Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.size(12.dp)); Box(Modifier.size(76.dp).background(Purple.copy(alpha = 0.12f), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Default.Security, null, tint = Purple, modifier = Modifier.size(42.dp)) }
+            Spacer(Modifier.size(10.dp)); Text("Pepers", fontSize = 23.sp, fontWeight = FontWeight.Bold, color = Purple); Text("التطبيق مقفل", fontSize = 14.sp, color = Color.Gray)
         }
-        Spacer(Modifier.height(12.dp))
-        Button(
-            onClick = {
-                if (verifyAppPin(context, pin)) onUnlocked() else error = "رمز القفل غير صحيح"
-            },
-            enabled = pin.length >= 4,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Purple)
-        ) { Text("فتح التطبيق") }
-        Spacer(Modifier.height(6.dp))
-        TextButton(onClick = onUseDeviceLock, modifier = Modifier.fillMaxWidth()) {
-            Text("🔐 استخدام البصمة أو قفل الجهاز")
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(if (biometricEnabled) "استخدم البصمة أو قفل الجهاز، أو أدخل رمز PIN." else "أدخل رمز PIN لفتح التطبيق.", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center)
+            Spacer(Modifier.size(18.dp)); Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) { repeat(6) { index -> PinDot(index < pin.length) } }
+            Spacer(Modifier.size(14.dp)); OutlinedTextField(value = pin, onValueChange = { pin = it.filter(Char::isDigit).take(6); error = "" }, label = { Text("رمز PIN") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth())
+            if (error.isNotBlank()) { Spacer(Modifier.size(6.dp)); Text(error, color = Color(0xFFC62828), fontSize = 11.sp) }
+            Spacer(Modifier.size(12.dp)); Button(onClick = { if (verifyAppPin(context, pin)) onUnlocked() else error = "رمز PIN غير صحيح" }, enabled = pin.length >= 4, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Purple)) { Text("فتح التطبيق") }
+            if (biometricEnabled) { Spacer(Modifier.size(18.dp)); Button(onClick = onUseDeviceLock, modifier = Modifier.size(116.dp), shape = CircleShape, colors = ButtonDefaults.buttonColors(containerColor = Purple.copy(alpha = 0.12f), contentColor = Purple)) { Icon(Icons.Default.Fingerprint, "البصمة", modifier = Modifier.size(48.dp)) }; Spacer(Modifier.size(7.dp)); Text("استخدام البصمة أو قفل الجهاز", color = Purple, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
         }
+        Text("بياناتك محمية على هذا الجهاز", fontSize = 10.sp, color = Color.Gray)
     }
 }
 
+@Composable private fun PinDot(filled: Boolean) { Box(Modifier.size(13.dp), contentAlignment = Alignment.Center) { Box(Modifier.size(if (filled) 13.dp else 9.dp).background(if (filled) Purple else Color(0xFFD2CDD7), CircleShape)) } }
+
 @Composable
-internal fun SetPinDialog(
-    onDismiss: () -> Unit,
-    onSaved: (String) -> Unit
-) {
-    var first by remember { mutableStateOf("") }
-    var second by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("تعيين رمز حماية") },
-        text = {
-            Column {
-                Text("استخدم رمزًا من 4 إلى 8 أرقام. احفظه في مكان آمن.", fontSize = 11.sp, color = Color.Gray)
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(first, { first = it.filter(Char::isDigit).take(8) }, label = { Text("الرمز") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(7.dp))
-                OutlinedTextField(second, { second = it.filter(Char::isDigit).take(8) }, label = { Text("تأكيد الرمز") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth())
-                if (error.isNotBlank()) Text(error, color = Color(0xFFC62828), fontSize = 10.sp)
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                when {
-                    first.length < 4 -> error = "الرمز يجب أن يكون 4 أرقام على الأقل"
-                    first != second -> error = "الرمزان غير متطابقين"
-                    else -> onSaved(first)
-                }
-            }, colors = ButtonDefaults.buttonColors(containerColor = Purple)) { Text("حفظ") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
-    )
+internal fun SetPinDialog(onDismiss: () -> Unit, onSaved: (String) -> Unit) {
+    var first by remember { mutableStateOf("") }; var second by remember { mutableStateOf("") }; var error by remember { mutableStateOf("") }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("تعيين أو تغيير رمز PIN", fontWeight = FontWeight.Bold) }, text = { Column { Text("استخدم رمزًا من 4 إلى 6 أرقام.", fontSize = 11.sp, color = Color.Gray); Spacer(Modifier.size(8.dp)); OutlinedTextField(first, { first = it.filter(Char::isDigit).take(6) }, label = { Text("الرمز الجديد") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth()); Spacer(Modifier.size(7.dp)); OutlinedTextField(second, { second = it.filter(Char::isDigit).take(6) }, label = { Text("تأكيد الرمز") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth()); if (error.isNotBlank()) { Spacer(Modifier.size(4.dp)); Text(error, color = Color(0xFFC62828), fontSize = 10.sp) } } }, confirmButton = { Button(onClick = { when { first.length !in 4..6 -> error = "الرمز يجب أن يكون من 4 إلى 6 أرقام"; first != second -> error = "الرمزان غير متطابقين"; else -> onSaved(first) } }, colors = ButtonDefaults.buttonColors(containerColor = Purple)) { Text("حفظ") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } })
 }
 
 @Composable
-internal fun SecuritySettingsDialog(
-    context: Context,
-    hasPin: Boolean,
-    onDismiss: () -> Unit,
-    onSetPin: () -> Unit,
-    onRemovePin: () -> Unit,
-    onBackup: () -> Unit,
-    onRestore: () -> Unit
-) {
-    var biometricEnabled by remember { mutableStateOf(isBiometricLockEnabled(context)) }
-    val biometricAvailable = remember { isDeviceLockAvailable(context) }
-    val protectionEnabled = hasPin || biometricEnabled
+internal fun SecuritySettingsDialog(context: Context, hasPin: Boolean, onDismiss: () -> Unit, onSetPin: () -> Unit, onRemovePin: () -> Unit, onBackup: () -> Unit, onRestore: () -> Unit) {
+    var biometricEnabled by remember { mutableStateOf(isBiometricLockEnabled(context)) }; var protectionEnabled by remember { mutableStateOf(hasPin || biometricEnabled) }; var showBackupDialog by remember { mutableStateOf(false) }; val biometricAvailable = remember { isDeviceLockAvailable(context) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("أمان التطبيق", fontWeight = FontWeight.Bold) }, text = { Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        SecuritySwitchRow("قفل التطبيق", "اطلب حماية عند فتح Pepers.", protectionEnabled) { enabled -> protectionEnabled = enabled; if (!enabled) { clearAppPin(context); setBiometricLockEnabled(context, false); biometricEnabled = false } else if (!hasPin && !biometricEnabled) onSetPin() }
+        SecuritySwitchRow("البصمة أو قفل الجهاز", if (biometricAvailable) "استخدم مصادقة الجهاز عند توفرها." else "مصادقة الجهاز غير متاحة على هذا الجهاز.", biometricEnabled, biometricAvailable) { enabled -> setBiometricLockEnabled(context, enabled); biometricEnabled = enabled; protectionEnabled = enabled || hasPin }
+        Card(Modifier.fillMaxWidth(), RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF7F5FA))) { Column(Modifier.padding(12.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Lock, null, tint = Purple, modifier = Modifier.size(22.dp)); Spacer(Modifier.width(8.dp)); Text("رمز PIN", fontWeight = FontWeight.Bold) }; Spacer(Modifier.size(4.dp)); Text("غيّر الرمز أو ألغِه من هنا.", fontSize = 10.sp, color = Color.Gray); Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) { TextButton(onClick = onSetPin) { Text(if (hasPin) "تغيير الرمز" else "تعيين الرمز") }; if (hasPin) TextButton(onClick = onRemovePin) { Text("إلغاء الرمز", color = Color(0xFFC62828)) } } } }
+        Card(Modifier.fillMaxWidth().clickable { showBackupDialog = true }, RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8F4))) { Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Backup, null, tint = Green, modifier = Modifier.size(24.dp)); Spacer(Modifier.width(9.dp)); Column(Modifier.weight(1f)) { Text("النسخ الاحتياطي والاستعادة", fontWeight = FontWeight.Bold); Text("حفظ نسخة من بيانات المحل واستعادتها عند الحاجة.", fontSize = 10.sp, color = Color.Gray) } } }
+    } }, confirmButton = { TextButton(onClick = onDismiss) { Text("تم") } })
+    if (showBackupDialog) BackupRestoreDialog(context, { showBackupDialog = false }, onBackup, onRestore)
+}
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("الحماية والنسخ الاحتياطي", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Text(if (protectionEnabled) "🔒 حماية التطبيق مفعلة" else "🔓 حماية التطبيق غير مفعلة", fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(10.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("🔐 البصمة أو قفل الجهاز", fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            if (biometricAvailable) "استخدم بصمة الجهاز أو قفل الشاشة لحماية التطبيق." else "لا تتوفر مصادقة بالبصمة أو قفل الجهاز على هذا الجهاز.",
-                            fontSize = 10.sp,
-                            color = Color.Gray
-                        )
-                    }
-                    Switch(
-                        checked = biometricEnabled,
-                        enabled = biometricAvailable,
-                        onCheckedChange = { enabled ->
-                            setBiometricLockEnabled(context, enabled)
-                            biometricEnabled = enabled
-                        }
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                Text("النسخة الاحتياطية تحمي بياناتك من فقدانها بسبب الأعطال أو الحذف العرضي. وللحماية من حذف التطبيق، انقل النسخة الاحتياطية إلى الهاتف أو التخزين السحابي.", fontSize = 11.sp, color = Color.Gray)
-            }
-        },
-        confirmButton = {
-            Column {
-                Button(onClick = onBackup, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Green)) { Text("💾 إنشاء نسخة احتياطية") }
-                Spacer(Modifier.height(5.dp))
-                Button(onClick = onRestore, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Blue)) { Text("♻ استعادة نسخة احتياطية") }
-            }
-        },
-        dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                TextButton(onClick = onSetPin) { Text("🔒 ${if (hasPin) "تغيير" else "تعيين"} PIN") }
-                if (hasPin) TextButton(onClick = onRemovePin) { Text("إلغاء PIN", color = Color(0xFFC62828)) }
-                TextButton(onClick = onDismiss) { Text("إغلاق") }
-            }
-        }
-    )
+@Composable private fun SecuritySwitchRow(title: String, description: String, checked: Boolean, enabled: Boolean = true, onCheckedChange: (Boolean) -> Unit) { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.SemiBold); Spacer(Modifier.size(2.dp)); Text(description, fontSize = 10.sp, color = Color.Gray) }; Switch(checked = checked, enabled = enabled, onCheckedChange = onCheckedChange) } }
+
+@Composable private fun BackupRestoreDialog(context: Context, onDismiss: () -> Unit, onBackup: () -> Unit, onRestore: () -> Unit) {
+    val lastBackup = remember { context.getSharedPreferences(BACKUP_PREFS, Context.MODE_PRIVATE).getLong(LAST_BACKUP_AT, 0L) }
+    val formatted = if (lastBackup > 0L) SimpleDateFormat("yyyy/MM/dd - HH:mm", Locale.getDefault()).format(Date(lastBackup)) else "لم يتم إنشاء نسخة احتياطية بعد"
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("النسخ الاحتياطي والاستعادة", fontWeight = FontWeight.Bold) }, text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(Modifier.fillMaxWidth(), RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF7F5FA))) { Column(Modifier.padding(14.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Backup, null, tint = Green, modifier = Modifier.size(25.dp)); Spacer(Modifier.width(8.dp)); Text("نسخة بياناتك", fontWeight = FontWeight.Bold) }; Spacer(Modifier.size(6.dp)); Text("آخر نسخة: $formatted", fontSize = 11.sp, color = Color.Gray); Spacer(Modifier.size(4.dp)); Text("احفظ النسخة في مكان آمن أو انقلها إلى تخزين سحابي حتى تتمكن من استعادة بياناتك عند الحاجة.", fontSize = 10.sp, color = Color.Gray) } }
+        Button(onClick = onBackup, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Green)) { Icon(Icons.Default.Backup, null, modifier = Modifier.size(19.dp)); Spacer(Modifier.width(7.dp)); Text("إنشاء نسخة احتياطية") }
+        OutlinedButton(onClick = onRestore, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = Purple)) { Icon(Icons.Default.Restore, null, modifier = Modifier.size(19.dp)); Spacer(Modifier.width(7.dp)); Text("استعادة نسخة احتياطية") }
+    } }, confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } })
 }
 
 internal fun exportBackup(context: Context, uri: Uri): Boolean {
     return try {
-        val db = File(context.getDatabasePath("add_paper.db").absolutePath)
+        val db = context.getDatabasePath("add_paper.db")
         if (!db.exists()) return false
-        val checkpointDb = Database(context)
-        checkpointDb.optimizeDatabase()
-        checkpointDb.writableDatabase.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { it.moveToFirst() }
-        checkpointDb.close()
-        val prefs = File(context.dataDir, "shared_prefs/add_paper_user.xml")
-        context.contentResolver.openOutputStream(uri)?.use { output ->
-            ZipOutputStream(output).use { zip ->
-                zip.putNextEntry(ZipEntry("database/add_paper.db")); FileInputStream(db).use { it.copyTo(zip) }; zip.closeEntry()
-                if (prefs.exists()) { zip.putNextEntry(ZipEntry("shared_prefs/add_paper_user.xml")); FileInputStream(prefs).use { it.copyTo(zip) }; zip.closeEntry() }
-                val securityPrefs = File(context.dataDir, "shared_prefs/app_security.xml")
-                if (securityPrefs.exists()) { zip.putNextEntry(ZipEntry("shared_prefs/app_security.xml")); FileInputStream(securityPrefs).use { it.copyTo(zip) }; zip.closeEntry() }
-                val profileImage = File(context.filesDir, "profile_image.jpg")
-                if (profileImage.exists()) { zip.putNextEntry(ZipEntry("files/profile_image.jpg")); FileInputStream(profileImage).use { it.copyTo(zip) }; zip.closeEntry() }
-                zip.putNextEntry(ZipEntry("backup_info.txt")); zip.write("Add Paper backup\n${Date()}\n".toByteArray()); zip.closeEntry()
-            }
-        } ?: return false
+        Database(context).apply { optimizeDatabase(); writableDatabase.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { it.moveToFirst() }; close() }
+        context.contentResolver.openOutputStream(uri)?.use { output -> ZipOutputStream(output).use { zip -> addZipFile(zip, db, "database/add_paper.db"); addOptionalZipFile(zip, File(context.dataDir, "shared_prefs/add_paper_user.xml"), "shared_prefs/add_paper_user.xml"); addOptionalZipFile(zip, File(context.filesDir, "profile_image.jpg"), "files/profile_image.jpg"); zip.putNextEntry(ZipEntry("backup_info.txt")); zip.write("Pepers backup\n${Date()}\n".toByteArray(Charsets.UTF_8)); zip.closeEntry() } } ?: return false
+        context.getSharedPreferences(BACKUP_PREFS, Context.MODE_PRIVATE).edit().putLong(LAST_BACKUP_AT, System.currentTimeMillis()).apply()
         true
     } catch (_: Exception) { false }
 }
+
+private fun addZipFile(zip: ZipOutputStream, file: File, entryName: String) { zip.putNextEntry(ZipEntry(entryName)); FileInputStream(file).use { it.copyTo(zip) }; zip.closeEntry() }
+private fun addOptionalZipFile(zip: ZipOutputStream, file: File, entryName: String) { if (file.exists()) addZipFile(zip, file, entryName) }
 
 internal fun restoreBackup(context: Context, uri: Uri): Boolean {
     return try {
         val tempDir = File(context.cacheDir, "restore_${System.currentTimeMillis()}").apply { mkdirs() }
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            ZipInputStream(input).use { zip ->
-                var entry = zip.nextEntry
-                while (entry != null) {
-                    val target = File(tempDir, entry.name)
-                    if (!target.canonicalPath.startsWith(tempDir.canonicalPath + File.separator)) throw SecurityException("Invalid backup")
-                    if (entry.isDirectory) target.mkdirs() else { target.parentFile?.mkdirs(); FileOutputStream(target).use { zip.copyTo(it) } }
-                    zip.closeEntry(); entry = zip.nextEntry
-                }
-            }
-        } ?: return false
+        context.contentResolver.openInputStream(uri)?.use { input -> ZipInputStream(input).use { zip -> var entry = zip.nextEntry; while (entry != null) { val target = File(tempDir, entry.name); if (!target.canonicalPath.startsWith(tempDir.canonicalPath + File.separator)) throw SecurityException("Invalid backup"); if (entry.isDirectory) target.mkdirs() else { target.parentFile?.mkdirs(); FileOutputStream(target).use { output -> zip.copyTo(output) } }; zip.closeEntry(); entry = zip.nextEntry } } } ?: return false
         val dbSource = File(tempDir, "database/add_paper.db")
         if (!dbSource.exists()) return false
-        val dbTarget = context.getDatabasePath("add_paper.db")
-        dbTarget.parentFile?.mkdirs()
-        FileInputStream(dbSource).use { input -> FileOutputStream(dbTarget).use { input.copyTo(it) } }
-        File(context.dataDir, "databases/add_paper.db-wal").delete()
-        File(context.dataDir, "databases/add_paper.db-shm").delete()
-
-        val restoredUserPrefs = File(tempDir, "shared_prefs/add_paper_user.xml")
-        if (restoredUserPrefs.exists()) {
-            val target = File(context.dataDir, "shared_prefs/add_paper_user.xml")
-            target.parentFile?.mkdirs()
-            FileInputStream(restoredUserPrefs).use { input -> FileOutputStream(target).use { input.copyTo(it) } }
-        }
-        val restoredSecurityPrefs = File(tempDir, "shared_prefs/app_security.xml")
-        if (restoredSecurityPrefs.exists()) {
-            val target = File(context.dataDir, "shared_prefs/app_security.xml")
-            target.parentFile?.mkdirs()
-            FileInputStream(restoredSecurityPrefs).use { input -> FileOutputStream(target).use { input.copyTo(it) } }
-        }
-        val restoredImage = File(tempDir, "files/profile_image.jpg")
-        if (restoredImage.exists()) {
-            val target = File(context.filesDir, "profile_image.jpg")
-            FileInputStream(restoredImage).use { input -> FileOutputStream(target).use { input.copyTo(it) } }
-        }
-        true
+        copyFile(dbSource, context.getDatabasePath("add_paper.db"))
+        File(context.dataDir, "databases/add_paper.db-wal").delete(); File(context.dataDir, "databases/add_paper.db-shm").delete()
+        val prefsSource = File(tempDir, "shared_prefs/add_paper_user.xml"); if (prefsSource.exists()) copyFile(prefsSource, File(context.dataDir, "shared_prefs/add_paper_user.xml"))
+        val imageSource = File(tempDir, "files/profile_image.jpg"); if (imageSource.exists()) copyFile(imageSource, File(context.filesDir, "profile_image.jpg"))
+        tempDir.deleteRecursively(); true
     } catch (_: Exception) { false }
 }
 
-internal fun createInternalAutoBackup(context: Context) {
-    try {
-        val dbHelper = Database(context)
-        dbHelper.writableDatabase.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { it.moveToFirst() }
-        dbHelper.close()
-        val dbFile = context.getDatabasePath("add_paper.db")
-        if (!dbFile.exists()) return
-        val dir = File(context.filesDir, "backups").apply { mkdirs() }
-        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val out = File(dir, "backup_$stamp.zip")
-        ZipOutputStream(FileOutputStream(out)).use { zip ->
-            zip.putNextEntry(ZipEntry("database/add_paper.db")); FileInputStream(dbFile).use { it.copyTo(zip) }; zip.closeEntry()
-        }
-        dir.listFiles()?.sortedByDescending { it.lastModified() }?.drop(7)?.forEach { it.delete() }
-    } catch (_: Exception) { }
-}
+private fun copyFile(source: File, target: File) { target.parentFile?.mkdirs(); FileInputStream(source).use { input -> FileOutputStream(target).use { output -> input.copyTo(output) } } }
