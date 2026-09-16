@@ -1,0 +1,41 @@
+package com.add.pepers
+
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+
+private val ICON_DATA: Map<String, String> = mapOf(
+    "icon12" to "UklGRjQBAABXRUJQVlA4ICgBAACQBwCdASogACAAPsFOpEyno6OiMBgIAPAYCWwAuzlBUt40cQQYCWAN5TRoHm3cvvNM16029P1B15n//2imykRGbppQh0AA/v6UY6RXzXzbNOwfrbbUj7CA+eE/4nNo8lC4Lm+XdcOKRP04j0lAMSICLeEvxAYzkLBwfZvfzeZpsxuXcxVF9lBn7i/nhDDRqdnOi8x121oSMURtPyTO7fYb35M5onZG+XdHaDqF7FuTK+T/P33WPLeUO2Du1N15S6ITYC3k1rj4U9Y7FuS8PxyptD7JnbDWPKEXFrCyv1EwTpXh+a7FclAXWugF+CDzVnXSrKXhPcJNTR+FB7BZXgHDnGhcKJEfzhGdgKNyUaaF3egdX0QtuYz624l+gXFEXsiwaouj8BquAA==",
+    "icon14" to "UklGRggBAABXRUJQVlA4IPwAAADwBgCdASogACAAPsFMoUqnpCMhsBgMAPAYCWwAuzlA3NVgHPt6ZmEuGN5MPY/59JexYMH8gSXA+/GgIxWXJuAAAP7+7JXoTYJJOljRp+kdbouytpBepxohOtQN+OfjyHkUkexEuAiXUtUG72napnL51KSRK0YnCkVBa1IXUQB3j/5tvXhSDK101A9IRwFyZU84C425ysNKLTcJfWnvcT36oUTbFqPD1lXkFtjy3WPtcb22dZUPjtXSsT4IL2evt/R0RBVzvBipUNZuflCTxGYCc75G9322VU6kPsFDVMBRWsBJYAZ6PDgT/8HLAcxlSveGV04wbUzdZ0WGoAA=",
+    "icon20" to "UklGRlQBAABXRUJQVlA4IEgBAAAQBwCdASogACAAPsFKo0qnpCMhsBgMAPAYCWYAs5mmttAboHcC38ReXknlYov5DYCU9Ur+/vHGNrwZ2N5ZsmBAAAD+/Bfcj9/+4g1nBI19E1iFub6qx41VLta+pmYkvo8WiM101InutmYYuBHJhz2Duf/RXPBhe5WgzLY19pJziUgp/1BhUXttIxPgyI1IUJivdaCxpFSfVyV7DyAMr4amtzbJMKA1lkmlcaisrmwtO+fvIX4qHTzmvk9z2sywrRlJjFAV2eeX0bXUSdyn5267t/9uWsn5xXK9399iTjaPkXcLdfLDUIV0pptqAQnpcQ/iJyfm9oagyd6/izajKKx25N5gM9qgCbtqNFZ+fYm/omz45GQUYje3Tx1LMf3mAGj6ii24dqQoWw4ZalL1oVpCg7+fyd/h9o4PQOJBrKZRQAKBSxZnVQAA",
+    "icon24" to "UklGRvQBAABXRUJQVlA4IOgBAAAwCwCdASogACAAPsFKo0qnpCMhsBgMAPAYCWYAt9WAYtHpme80TFQYCtBQQxg36zean51/6PuAfxn+n/qx2YPSA/ZlMjqm4MhkuaK3ktdTBcjxnubz71HSK6PuDUSNUhiOeAD+/BPoAzT7AAU62S91cHSkZfftmBJydh1gjU3kar18KvodKs4F6kYo1NftcXHWu01+s+01ahR+J9MBu8OE5s9G1iQFivSEGCf44QGSEDyN7WlGJT3WtxX+ViFB2MaqRmXLiLzV1eePxSH6rBRHvzHIrm8W/3ciO5121zdJ0lsJRD6ylp6zV8CVhBK8X2XLYjB8djOoSIjPRSWon4kvcqijeMYhjvyJ93KxyudOHJP+l/24j/Exu9jfwhstym/BioRA8m2x4rvLQYYlQDp+DA2Fvf9kkAOsp4bkBux0LxwyI0ryIK85M4ZJ3X+uaoSbtf9zYn45OccMSeK5bWlwp9tzuGm50/E0s+uwWY4HjGgV9MKZWTcTk88q8f5rajy1xVBkbnuCAvERkWSoXsQ5U3B4LSgD1qvinZ/TZ4l3Z+WYFkiAl+hjKt+6UZtsJXHGjXBVnbU6MyzAKrDP6MzAtcoze4T9aK1wi+K+r9VPzkEJPZVn2txY3quuMj+INgxiglfETKUAAA==",
+    "icon9" to "UklGRlQBAABXRUJQVlA4IEgBAABQCQCdASogACAAPsFUnkqnpSKhsBgMAPAYCWwAnTKEdeeq24doI0B6gNsB5gMcR9ADyy/ZT/acLoVEjBrL5mgMCJiZIYoxLD5DQoqrnQ+dSw/MYAD+/uy7DFInPl0unK8Ad9b0+tZUNWIf2MQDeWeILL0vulq1KOvplaMZENT61/I7z4jYN/5iHUP6/6f8eh5ftD3+fj/rr0udIob9n2w//kBHtd+mAC/yLYsJ11T4bLQs4+BnokPZKFexmFXPm8TXLW2xvpGlmnXSvM7+PQrximSwsvF0CkfPIZ3N//kdHfheoluuOZn39QC/aA68Quxq2sAX+gALLRTUZalh0juKf+bm4nZg4VZ6m/YO4fO/rs2S4aB0pyqw+pvTPpTMXhjBN03hSDJ4FgeIv/f5490CbjA3yYL3gV7X1qMxjE8dB49uaZlAxOAA",
+    "icon_facebook" to "UklGRqYAAABXRUJQVlA4IJoAAACQBQCdASogACAAPr1OoEqnJKMhsAwA4BeJaADKMoAlsRf6zwMCZMv7nKynkZ/f5x5a8PwpAAD+9+Kx/BFdkb1SnP9hMw78Z2AifyZMyfOMNNM4qBC9nPx6XX+gs34VpJvs+bBSysUdUSn4fBNR8XY4hGB9z3XNX12WQBVcgPMr7PakfR2aMXOy717X0XFa7mWIS1W41QF4MWAA",
+    "icon_sms" to "UklGRrYAAABXRUJQVlA4IKoAAABQBQCdASogABUAPsFOn0qnpCKhsAgA8BgJbAC7KIFkAljMClHz1KkYOmo5SNZ20U6frIAA/vcCIL0n/zIxeJeXUTRVA0QBULIXLHV62xVF6nibsGO8U4oJyk5esaa48HUrwzPr227qj5AMs2CJUFybBFjv3Ndp/0tGnQsnBJTCwrvxPcPfg7R9W7v/+TkOuDMOJorCpbEi+BA+rmyG+3bCdrJ3xUNO9dAAAA==",
+    "icon_whatsapp" to "UklGRswAAABXRUJQVlA4IMAAAACQBQCdASogABgAPsFSoUqnpKMhsAgA8BgJbAC28IF4AwQDJJQKUggJDhNBFzbG2YzO0Q2pAAD+9wKKwbmHD9C3yKtMdLZQszIXK2Z9b7S0QGYbrITzuAQgZvu9N8+tbB21crQh0w56MLyyNu9aErhBuVWGcNbjAmcLcgkIxwMdfO82WtsIYuw+d5XT1lvUV0cN/V/xYaTSDStn5j7Xk2+8nIgQTd0xglLaaVJK0RmngGv17bwmxo7m2JmRYKRAAAA=",
+    "mored" to "UklGRhYBAABXRUJQVlA4IAoBAABwBgCdASogACAAPrVMoEqnJKOhsAwA4BaJbAC7H8IIxtgLtgCXDG7sD+aHlAc0cf8aOo0XJ4Cpti3EG2AA/v7slF/Z2mWrIvzabN4rZLG6iaFmHgks95n2nh+VxTt7wEGTtPn3KcB9z0ozPxoeEX1ySdyra+3K6h9IKdwh8zX4PMgEN4SMluCTncl2K/vUn+GuNoWzGyA0FhRopImLsmHIoHkiAcb43YLbaisHWcDoQWtFqicPv6nxOiUbCuJI8C1TUb+EjAZKhF4XXwjyVA1GNbE7LNWCZEuQuPL93DyqIkV2dKWbXPblksfNt/IWngOHmc6OPpnzDJH89xPhGzJyme6C7t4UaK0AAA==",
+    "nodata" to "UklGRtAAAABXRUJQVlA4IMQAAAAwBgCdASoeACAAPsFSokunpKMhqA1Q8BgJZgDHJuuroYEGl2wAHTbSaHR8EG+OqldnsXxEGkegu7ogAP78fO6rywSWB6HYD7PgcEWWeREoSbt6UQpzcjxTJ05o5eTprIpHnbbfxjKvBHdQh4eCSj2tgUHo0FeTQfYnvv195epmTXKI3Vd707r28OmItVFneq+NZsbvFm3aPt1rudn+pQ/aK+vLCfgVa/Nsw+kab9GK3cV9X483umsyuXfgyO69jEza0AAA",
+    "pdfr" to "UklGRgQBAABXRUJQVlA4IPgAAABwBgCdASoaACAAPsFUpU0npKOiKAqo8BgJZgCdMtP2/KAKf5J+knFxoASnVdVFKwcVfwM14jow/vwxSYAA/vrfgvqxRUyaTuYXzdnDGIsD+rceY92OwIfktC+fJZ6NHSXvuY1P6i/CV7PmCGl5EIPuTAz2bMKwdJGuuTI4AxiUZN531V1Y0xZTOpIwvJnedLJDSJpr2aCepm+YDr88pS1F0jPWpxZtB286qHDCJkmaWVinzuqL7Wm2Knr3pNhSxJlsQzeo+DmwvWKSzGNBcPafa3nRSXRCVwC4w+F9jzGr+4KJIKyZRv20QSf4lyWU6Xp0HsvuhGEAAA==",
+    "send_message" to "UklGRlYBAABXRUJQVlA4IEoBAAAwBwCdASogABcAPsFQoEqnpKMhsAgA8BgJbACdMzL3CQhbSGmV7x2V4HvhQZxs+YgClIXGmBLqe3lnR//y5ldOAAAA/vcGxZXtSzlFwy3pp37443y15DTaCGHlBLjE2SX47V/ztI3CDLov9uMcT4DW342AVAOlt1n8O+a4qHa0qDLJN3czFjpVf1Gsqc2QRBrQJHvtofwdWSZZ2XrzZujNvtEBfAWdBEP25aSEIPRvLO6JIjJOzD+6Oh6lD4JHs64WOHJn7r4c1FPrdnaaeo1b4sjgL7+ryYJnSlRxuDysZcZy6EWBqRZvOEJMje7OJ3XrQAfUqL8rRl6snwO8/5qLQ07rwgfXHah+ddO0C78/8f87/IWdf/awkT2UdtCM962dc1kKH7//n/yW4JoivdChZs3+NY7Sqmfn90x+URamrlY+6V/+3c7wAA=",
+    "sijalday" to "UklGRuYAAABXRUJQVlA4INoAAADQBQCdASogACAAPsFQokunpKMhqA1Q8BgJYgDDkA/qQPbT37+EPKUoBTZ9rP8EEvskSfUasMAAAP7+wgzzv0fwZ1FOoaH3/VmMWLyd1RoCmKZ2Y+F4oESNu1vE5gQSMTt0ti95ymab/0Rl8CQvLPqkjp2EYQLQ9W4utE4hf+JyUozCb3KQB1p8VnqyaLD//qqZTHO61VK4TabrT8r+fIaWCHLcHILjy1lVeBiOngXJ7f51wZgWZA1Cyxc7RTaabY1tZSH/PybA2hYNKPcIG1MzBgAPCyLNaAAAAA=="
+)
+
+@Composable
+internal fun PepersIcon(name: String, modifier: Modifier = Modifier, contentDescription: String? = null) {
+    val bitmap = remember(name) {
+        ICON_DATA[name]?.let { encoded ->
+            runCatching {
+                val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }.getOrNull()
+        }
+    }
+    if (bitmap != null) {
+        Image(bitmap = bitmap.asImageBitmap(), contentDescription = contentDescription, modifier = modifier, contentScale = ContentScale.Fit)
+    }
+}
