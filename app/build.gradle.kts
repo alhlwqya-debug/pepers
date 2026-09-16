@@ -31,8 +31,11 @@ android {
 
         release {
             isDebuggable = false
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // R8 removes unused dependency code and can keep the release
+            // within a single DEX on CodeAssist, avoiding its Arabic-locale
+            // bundletool classes2.dex validation bug.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -47,7 +50,6 @@ android {
 
     buildFeatures {
         compose = true
-        viewBinding = true
         buildConfig = true
     }
 
@@ -75,8 +77,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
-    implementation("androidx.databinding:viewbinding:8.7.3")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.work:work-runtime-ktx:2.10.1")
-    implementation("androidx.fragment:fragment-ktx:1.8.5")
 }
