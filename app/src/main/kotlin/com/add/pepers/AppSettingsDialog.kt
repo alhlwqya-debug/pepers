@@ -51,6 +51,7 @@ private const val LICENSE_URL = "https://github.com/alhlwqya-debug/pepers/blob/m
 @Composable
 internal fun AppSettingsDialog(
     onDismiss: () -> Unit,
+    onUserProfile: () -> Unit,
     onRegistrationSettings: () -> Unit,
     onSecuritySettings: () -> Unit,
     onAbout: () -> Unit,
@@ -104,11 +105,14 @@ internal fun AppSettingsDialog(
                 Column(Modifier.fillMaxWidth()) {
                     Text("إعدادات التطبيق", Modifier.fillMaxWidth(), textAlign = TextAlign.Right, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                     Spacer(Modifier.size(4.dp))
-                    Text("إدارة المزامنة والتنبيهات والمساعدة ومعلومات التطبيق.", Modifier.fillMaxWidth(), textAlign = TextAlign.Right, color = Color.Gray, fontSize = 12.sp)
+                    Text("إدارة الحساب والبيانات والتنبيهات والأمان والمساعدة ومعلومات التطبيق.", Modifier.fillMaxWidth(), textAlign = TextAlign.Right, color = Color.Gray, fontSize = 12.sp)
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsGroupTitle("الحساب")
+                    SettingsAction("👤", "ملفي الشخصي", "الاسم ورقم الهاتف والبريد ومعلومات الملف") { onUserProfile(); onDismiss() }
+
                     SettingsGroupTitle("البيانات والمزامنة")
                     SettingsAction("☁", "المزامنة السحابية", "تعمل تلقائيًا عند توفر الشبكة وفي الخلفية") { BackgroundSyncScheduler.requestNow(context); onDismiss() }
                     SettingsAction("🔐", "الأمان والنسخ الاحتياطي", "قفل التطبيق والنسخ والاستعادة") { onSecuritySettings(); onDismiss() }
