@@ -9,7 +9,6 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.add.pepers.cloud.SupabaseAuthRepository
-import java.util.Calendar
 
 class WorkReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
@@ -24,16 +23,14 @@ class WorkReminderReceiver : BroadcastReceiver() {
 
         val session = SupabaseAuthRepository(appContext).savedSession()
 
-        // Never inspect or back up a user's local database while no account is
-        // authenticated. This prevents a scheduled receiver from touching the
-        // previous user's data after logout.
+        // Do not inspect local data while no account is authenticated. This also
+        // prevents a scheduled receiver from touching the previous account after logout.
         if (session == null) {
             WorkReminderScheduler.schedule(appContext)
             return
         }
 
         LocalDatabaseAccountManager.activateUser(appContext, session.userId)
-        createInternalAutoBackup(appContext)
         val database = Database(appContext)
 
         try {
@@ -107,13 +104,14 @@ object WorkReminderScheduler {
     private const val MINUTE = 0
 
     fun schedule(context: Context) {
-        val prefs = context.applicationContext.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE)
+        val appContext = context.applicationContext
+        val prefs = appContext.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("daily_work_reminder_enabled", true)) return
 
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-        val intent = Intent(context, WorkReminderReceiver::class.java)
+        val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        val intent = Intent(appContext, WorkReminderReceiver::class.java)
         val pendingIntent = PendingIntent.getBroadcast(
-            context,
+            appContext,
             ALARM_REQUEST_CODE,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -121,13 +119,13 @@ object WorkReminderScheduler {
 
         alarmManager.cancel(pendingIntent)
 
-        val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, HOUR)
-            set(Calendar.MINUTE, MINUTE)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+        val calendar = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, HOUR)
+            set(java.util.Calendar.MINUTE, MINUTE)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
             if (timeInMillis <= System.currentTimeMillis()) {
-                add(Calendar.DAY_OF_YEAR, 1)
+                add(java.util.Calendar.DAY_OF_YEAR, 1)
             }
         }
 
@@ -140,10 +138,11 @@ object WorkReminderScheduler {
     }
 
     fun cancel(context: Context) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-        val intent = Intent(context, WorkReminderReceiver::class.java)
+        val appContext = context.applicationContext
+        val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        val intent = Intent(appContext, WorkReminderReceiver::class.java)
         val pendingIntent = PendingIntent.getBroadcast(
-            context,
+            appContext,
             ALARM_REQUEST_CODE,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
