@@ -182,6 +182,7 @@ private fun ShopSettingsDialog(
     onDelete: () -> Unit,
     onRegistrationModeChanged: (Long) -> Unit
 ) {
+    val context = LocalContext.current
     var confirmDelete by remember { mutableStateOf(false) }
     var showRegistrationSettings by remember { mutableStateOf(false) }
     var selectedMode by remember(shop) { mutableStateOf(shop?.registrationMode ?: RegistrationMode.NUMERIC) }
