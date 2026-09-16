@@ -41,9 +41,6 @@ internal fun shareWebViewAsPdf(
             val metrics = context.resources.displayMetrics
             val viewWidth = metrics.widthPixels.coerceAtLeast(1)
 
-            // Measure the WebView with an unrestricted height. This is important
-            // for long monthly tables: measuring it to the screen height can
-            // produce a PDF containing only the first viewport of the table.
             val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(
                 viewWidth,
                 android.view.View.MeasureSpec.EXACTLY
@@ -55,10 +52,12 @@ internal fun shareWebViewAsPdf(
 
             webView.measure(widthSpec, heightSpec)
 
+            // WebView.computeVerticalScrollRange() is protected, so do not
+            // access it here. contentHeight is the public WebView API for the
+            // HTML document height.
             val measuredHeight = maxOf(
                 webView.measuredHeight,
                 (webView.contentHeight * webView.scale.coerceAtLeast(0.1f)).roundToInt(),
-                webView.computeVerticalScrollRange(),
                 metrics.heightPixels
             ).coerceAtLeast(1)
 
@@ -165,9 +164,6 @@ internal fun shareWebViewAsPdf(
         val scale = webView.scale.coerceAtLeast(0.1f)
         val cssViewportHeight = viewportHeight / scale
 
-        // onPageFinished can occur before the WebView has completed the final
-        // layout. Retry briefly so a long month is not exported as only the
-        // first viewport of rows.
         if (attempt < 6 && contentHeight <= cssViewportHeight) {
             webView.postDelayed({ waitForCompleteLayout(attempt + 1) }, 180L)
             return
