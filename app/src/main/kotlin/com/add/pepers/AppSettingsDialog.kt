@@ -63,6 +63,16 @@ internal fun AppSettingsDialog(
     var updateState by remember { mutableStateOf("لم يتم التحقق بعد") }
     var checkingUpdate by remember { mutableStateOf(false) }
 
+    // Read the installed version through PackageManager instead of BuildConfig.
+    // This also works reliably in lightweight IDEs such as CodeAssist where
+    // generated BuildConfig sources may not be indexed during compilation.
+    val currentVersion = remember(context) {
+        runCatching {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        }.getOrNull()?.removePrefix("v") ?: "غير معروف"
+    }
+
     fun openUrl(url: String) {
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     }
@@ -91,8 +101,11 @@ internal fun AppSettingsDialog(
         }
         checkingUpdate = false
         result.onSuccess { latest ->
-            val current = BuildConfig.VERSION_NAME.removePrefix("v")
-            updateState = if (latest != current) "يتوفر إصدار أحدث: $latest (الإصدار الحالي $current)" else "أنت تستخدم أحدث إصدار ($current)"
+            updateState = if (latest != currentVersion) {
+                "يتوفر إصدار أحدث: $latest (الإصدار الحالي $currentVersion)"
+            } else {
+                "أنت تستخدم أحدث إصدار ($currentVersion)"
+            }
         }.onFailure {
             updateState = "تعذر التحقق الآن. تحقق من اتصال الإنترنت."
         }
@@ -145,7 +158,7 @@ internal fun AppSettingsDialog(
                     SettingsAction("▦", "المزيد من التطبيقات", "استعراض مشاريع وتطبيقات المطور") { openUrl(REPOSITORIES_URL) }
 
                     HorizontalDivider(Modifier.padding(top = 4.dp))
-                    Text("Pepers — الإصدار ${BuildConfig.VERSION_NAME}", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 10.sp, color = Color.Gray)
+                    Text("Pepers — الإصدار $currentVersion", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 10.sp, color = Color.Gray)
                     Text("فكرة وتطوير المهندس أحمد عبدالودود الدبعي", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Purple)
                     Text("الاسم والهوية والتصميم والمساهمات الأصلية تخضع للحقوق والتراخيص المبينة في المشروع، بينما تبقى مكونات الطرف الثالث خاضعة لتراخيصها الخاصة.", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 9.sp, color = Color.Gray, lineHeight = 14.sp)
                 }
