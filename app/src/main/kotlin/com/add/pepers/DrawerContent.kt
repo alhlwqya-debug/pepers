@@ -14,20 +14,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddBusiness
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -42,19 +48,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.runtime.CompositionLocalProvider
 import com.add.pepers.cloud.SupabaseAuthRepository
 
@@ -78,482 +83,221 @@ internal fun DrawerContent(
     val context = LocalContext.current
     val currentShop = shops.firstOrNull { it.id == selectedShopId }
     var showSignOutDialog by remember { mutableStateOf(false) }
+    var showShopSettings by remember { mutableStateOf(false) }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Column(
-            modifier = modifier
-                .fillMaxHeight()
-                .background(AppSurface)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = modifier.fillMaxHeight().background(AppSurface).verticalScroll(rememberScrollState()).padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // ================= رأس القائمة =================
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Menu,
-                        contentDescription = "القائمة",
-                        tint = Purple,
-                        modifier = Modifier.size(26.dp)
-                    )
-                    Text(
-                        text = "القائمة",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Purple
-                    )
+            Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Menu, "القائمة", tint = Purple, modifier = Modifier.size(25.dp))
+                    Text("القائمة الرئيسية", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Purple)
                 }
-
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(AppSurfaceAlt)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "إغلاق",
-                        tint = Purple,
-                        modifier = Modifier.size(21.dp)
-                    )
+                IconButton(onClick = onClose, modifier = Modifier.size(40.dp).clip(CircleShape).background(AppSurfaceAlt)) {
+                    Icon(Icons.Default.Close, "إغلاق", tint = Purple)
                 }
             }
+            HorizontalDivider(color = AppBorder, modifier = Modifier.padding(bottom = 10.dp))
 
-            HorizontalDivider(
-                modifier = Modifier.padding(bottom = 10.dp),
-                color = AppBorder
-            )
-
-            // ================= بطاقة المستخدم والمحل الحالي =================
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(AppPrimarySoft)
-                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(AppPrimarySoft).padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(58.dp)
-                        .clip(CircleShape)
-                        .background(AppSurface),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(Modifier.size(54.dp).clip(CircleShape).background(AppSurface), contentAlignment = Alignment.Center) {
                     if (userImagePath.isNotBlank()) {
-                        LocalProfileImage(
-                            path = userImagePath,
-                            contentDescription = "الصورة الشخصية",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                        LocalProfileImage(userImagePath, "الصورة الشخصية", Modifier.fillMaxSize(), ContentScale.Crop)
                     } else {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = Purple,
-                            modifier = Modifier.size(32.dp)
-                        )
+                        Icon(Icons.Default.Person, null, tint = Purple, modifier = Modifier.size(30.dp))
                     }
                 }
-
-                Spacer(Modifier.width(12.dp))
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        text = if (userName.isBlank()) "مستخدم غير مسجل" else userName,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Purple,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = currentShop?.name?.takeIf { it.isNotBlank() } ?: "لم يتم اختيار محل",
-                        fontSize = 13.sp,
-                        color = AppMuted,
-                        maxLines = 1
-                    )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                    Text(if (userName.isBlank()) "مستخدم غير مسجل" else userName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Purple, maxLines = 1)
+                    Text(currentShop?.name ?: "لم يتم اختيار محل", fontSize = 12.sp, color = AppMuted, maxLines = 1)
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
-
-            // ================= قسم المحلات =================
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .height(22.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Purple)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "المحلات",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppText
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "🏪",
-                    fontSize = 15.sp
-                )
-            }
-
+            Spacer(Modifier.height(12.dp))
+            SectionTitle("المحلات")
             Spacer(Modifier.height(7.dp))
 
             if (shops.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(AppSurfaceAlt)
-                        .border(1.dp, AppBorder, RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "لا توجد محلات مضافة",
-                        color = Color.Gray,
-                        fontSize = 12.sp
-                    )
-                }
+                EmptyDrawerState("لا توجد محلات مضافة")
             } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 150.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 150.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(shops, key = { it.id }) { shop ->
                         val selected = shop.id == selectedShopId
-
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    if (selected) AppPrimarySoft else AppSurfaceAlt
-                                )
-                                .border(
-                                    width = 1.dp,
-                                    color = if (selected) Purple else AppBorder,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .clickable { onSelectShop(shop.id) }
-                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
+                                .background(if (selected) AppPrimarySoft else AppSurfaceAlt)
+                                .border(1.dp, if (selected) Purple else AppBorder, RoundedCornerShape(13.dp))
+                                .clickable { onSelectShop(shop.id) }.padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (selected) "✓" else "○",
-                                color = if (selected) Purple else Color.Gray,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Icon(Icons.Default.Store, null, tint = if (selected) Purple else AppMuted, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(9.dp))
-                            Text(
-                                text = shop.name,
-                                modifier = Modifier.weight(1f),
-                                fontSize = 13.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (selected) Purple else AppText,
-                                maxLines = 1
-                            )
-                            if (selected) {
-                                Text(
-                                    text = "الحالي",
-                                    fontSize = 10.sp,
-                                    color = Purple,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            Text(shop.name, Modifier.weight(1f), fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, color = if (selected) Purple else AppText, maxLines = 1)
+                            if (selected) Text("الحالي", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Purple)
                         }
                     }
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedButton(
-                onClick = onAddShop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp),
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Purple),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Purple
-                ),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(19.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "إضافة محل جديد",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            if (selectedShopId != null) {
-                Spacer(Modifier.height(4.dp))
-
-                TextButton(
-                    onClick = onDeleteShop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(38.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = null,
-                        tint = Red,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        text = "حذف المحل الحالي",
-                        color = Red,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-
-            // ================= الوصول السريع =================
-            Text(
-                text = "الوصول السريع",
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = AppMuted
-            )
-
-            DrawerFilledButton(
-                text = "ملفي الشخصي",
-                icon = Icons.Default.Person,
-                containerColor = Purple,
-                onClick = onUserProfile
-            )
-
             Spacer(Modifier.height(7.dp))
-
-            DrawerOutlinedButton(
-                text = "إعدادات التسجيل",
-                icon = "⚙",
-                onClick = onSettings
-            )
-
+            DrawerActionButton("إضافة محل جديد", Icons.Default.AddBusiness, Purple, onAddShop)
             Spacer(Modifier.height(7.dp))
-
-            DrawerOutlinedButton(
-                text = "الإحصائيات",
-                icon = "▥",
-                onClick = onStatistics
-            )
+            DrawerActionButton("إعدادات المحل", Icons.Default.Settings, AppText, { showShopSettings = true }, outlined = true)
 
             Spacer(Modifier.height(13.dp))
+            SectionTitle("الوصول السريع")
+            Spacer(Modifier.height(6.dp))
+            DrawerActionButton("ملفي الشخصي", Icons.Default.Person, Purple, onUserProfile)
+            Spacer(Modifier.height(6.dp))
+            DrawerActionButton("إعدادات التسجيل", Icons.Default.Settings, AppText, onSettings, outlined = true)
+            Spacer(Modifier.height(6.dp))
+            DrawerActionButton("الإحصائيات", Icons.Default.Analytics, AppText, onStatistics, outlined = true)
 
-            Text(
-                text = "المساعدة والمعلومات",
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = AppMuted
-            )
+            Spacer(Modifier.height(13.dp))
+            SectionTitle("المساعدة والمعلومات")
+            Spacer(Modifier.height(6.dp))
+            DrawerActionButton("دليل الاستخدام", Icons.Default.HelpOutline, AppText, onHelp, outlined = true)
+            Spacer(Modifier.height(6.dp))
+            DrawerActionButton("من نحن", Icons.Default.Info, AppText, onAbout, outlined = true)
 
-            DrawerOutlinedButton(
-                text = "دليل الاستخدام",
-                icon = "؟",
-                onClick = onHelp
-            )
-
-            Spacer(Modifier.height(7.dp))
-
-            DrawerOutlinedButton(
-                text = "من نحن",
-                icon = "●",
-                onClick = onAbout
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // ================= الحساب =================
-            HorizontalDivider(
-                color = AppBorder,
-                modifier = Modifier.padding(top = 6.dp, bottom = 10.dp)
-            )
-
-            Text(
-                text = "الحساب",
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = AppMuted
-            )
-
+            Spacer(Modifier.height(13.dp))
+            HorizontalDivider(color = AppBorder, modifier = Modifier.padding(bottom = 10.dp))
+            SectionTitle("الحساب")
+            Spacer(Modifier.height(6.dp))
             OutlinedButton(
                 onClick = { showSignOutDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp),
+                Modifier.fillMaxWidth().height(44.dp),
                 shape = AppButtonShape,
                 border = androidx.compose.foundation.BorderStroke(1.dp, Red),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Red),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp)
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Red)
             ) {
-                Text(
-                    text = "تسجيل الخروج وتبديل الحساب",
-                    color = Red,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Logout, null, tint = Red, modifier = Modifier.size(19.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("تسجيل الخروج وتبديل الحساب", color = Red, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
-
-            Spacer(Modifier.height(14.dp))
-
-            HorizontalDivider(
-                color = AppBorder,
-                modifier = Modifier.padding(top = 6.dp, bottom = 7.dp)
-            )
-
-            Text(
-                text = "جميع الحقوق محفوظة © 2026",
-                fontSize = 9.sp,
-                color = AppMuted,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Spacer(Modifier.height(12.dp))
+            Text("جميع الحقوق محفوظة © 2026", fontSize = 9.sp, color = AppMuted, textAlign = TextAlign.Center)
         }
+    }
+
+    if (showShopSettings) {
+        ShopSettingsDialog(
+            shop = currentShop,
+            onDismiss = { showShopSettings = false },
+            onDelete = {
+                showShopSettings = false
+                onDeleteShop()
+            }
+        )
     }
 
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
             title = { Text("تسجيل الخروج", fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "سيتم حفظ بيانات هذا الحساب على الجهاز ثم تسجيل الخروج. عند تسجيل الدخول بحساب آخر سيتم تحميل بياناته الخاصة فقط."
-                )
-            },
+            text = { Text("سيتم حفظ بيانات هذا الحساب على الجهاز ثم تسجيل الخروج. عند تسجيل الدخول بحساب آخر سيتم تحميل بياناته الخاصة فقط.") },
             confirmButton = {
-                Button(
-                    onClick = {
-                        showSignOutDialog = false
-                        onClose()
-                        runCatching {
-                            SupabaseAuthRepository(context.applicationContext).clearSession()
-                            (context as? Activity)?.recreate()
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Red)
-                ) {
-                    Text("تسجيل الخروج")
-                }
+                Button(onClick = {
+                    showSignOutDialog = false
+                    onClose()
+                    runCatching {
+                        SupabaseAuthRepository(context.applicationContext).clearSession()
+                        (context as? Activity)?.recreate()
+                    }
+                }, colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("تسجيل الخروج") }
             },
-            dismissButton = {
-                TextButton(onClick = { showSignOutDialog = false }) {
-                    Text("إلغاء")
-                }
-            }
+            dismissButton = { TextButton(onClick = { showSignOutDialog = false }) { Text("إلغاء") } }
         )
     }
 }
 
 @Composable
-private fun DrawerFilledButton(
+private fun SectionTitle(title: String) {
+    Text(title, Modifier.fillMaxWidth().padding(horizontal = 4.dp), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AppMuted, textAlign = TextAlign.Right)
+}
+
+@Composable
+private fun EmptyDrawerState(text: String) {
+    Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(12.dp)).background(AppSurfaceAlt).border(1.dp, AppBorder, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+        Text(text, fontSize = 11.sp, color = Color.Gray)
+    }
+}
+
+@Composable
+private fun DrawerActionButton(
     text: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    containerColor: Color,
-    onClick: () -> Unit
+    tint: Color,
+    onClick: () -> Unit,
+    outlined: Boolean = false
 ) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(44.dp),
-        shape = AppButtonShape,
-        colors = ButtonDefaults.buttonColors(containerColor = containerColor),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = text,
-                color = AppSurface,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(Modifier.width(8.dp))
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = AppSurface,
-                modifier = Modifier.size(20.dp)
-            )
+    val shape = AppButtonShape
+    if (outlined) {
+        OutlinedButton(onClick = onClick, Modifier.fillMaxWidth().height(44.dp), shape = shape, border = androidx.compose.foundation.BorderStroke(1.dp, AppBorder), colors = ButtonDefaults.outlinedButtonColors(contentColor = AppText)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(9.dp))
+                Text(text, Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Right)
+            }
+        }
+    } else {
+        Button(onClick = onClick, Modifier.fillMaxWidth().height(44.dp), shape = shape, colors = ButtonDefaults.buttonColors(containerColor = tint)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, null, tint = AppSurface, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(9.dp))
+                Text(text, Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppSurface, textAlign = TextAlign.Right)
+            }
         }
     }
 }
 
 @Composable
-private fun DrawerOutlinedButton(
-    text: String,
-    icon: String,
-    onClick: () -> Unit
-) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(44.dp),
-        shape = AppButtonShape,
-        border = androidx.compose.foundation.BorderStroke(1.dp, AppMuted),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = Purple),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = text,
-                color = Purple,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = icon,
-                color = Purple,
-                fontSize = if (icon == "؟") 20.sp else 16.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+private fun ShopSettingsDialog(shop: ShopRecord?, onDismiss: () -> Unit, onDelete: () -> Unit) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("إعدادات المحل", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                CardInfo("اسم المحل", shop?.name ?: "لا يوجد محل محدد")
+                CardInfo("طريقة التسجيل", if (shop?.registrationMode == RegistrationMode.INDIVIDUAL) "تسجيل فردي" else "تسجيل عددي")
+                Text("منطقة العمليات الخطرة", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Red)
+                Text("حذف المحل سيزيل بياناته المحلية. لن يظهر خيار الحذف في القائمة الجانبية لتقليل الحذف بالخطأ.", fontSize = 10.sp, color = Color.Gray)
+                OutlinedButton(
+                    onClick = { confirmDelete = true },
+                    enabled = shop != null,
+                    Modifier.fillMaxWidth(),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Red),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Red)
+                ) { Text("حذف المحل الحالي") }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } }
+    )
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("تأكيد حذف المحل", fontWeight = FontWeight.Bold) },
+            text = { Text("هل أنت متأكد من حذف «${shop?.name ?: "المحل"}»؟ هذا الإجراء قد يحذف سجلاته المرتبطة ولا يمكن التراجع عنه.") },
+            confirmButton = { Button(onClick = { confirmDelete = false; onDelete() }, colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("حذف نهائي") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("إلغاء") } }
+        )
+    }
+}
+
+@Composable
+private fun CardInfo(title: String, value: String) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppSurfaceAlt).padding(11.dp)) {
+        Text(title, fontSize = 10.sp, color = AppMuted)
+        Spacer(Modifier.size(2.dp))
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppText)
     }
 }
