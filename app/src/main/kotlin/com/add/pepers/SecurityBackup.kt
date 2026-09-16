@@ -20,8 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -72,7 +70,6 @@ internal fun hasAppPin(context: Context): Boolean {
     val prefs = context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
     return prefs.getString(PIN_HASH, null).orEmpty().isNotBlank() || prefs.getBoolean(BIOMETRIC_LOCK_ENABLED, false)
 }
-
 internal fun isBiometricLockEnabled(context: Context): Boolean = context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).getBoolean(BIOMETRIC_LOCK_ENABLED, false)
 internal fun setBiometricLockEnabled(context: Context, enabled: Boolean) { context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).edit().putBoolean(BIOMETRIC_LOCK_ENABLED, enabled).apply() }
 internal fun isDeviceLockAvailable(context: Context): Boolean = try { BiometricManager.from(context).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS } catch (_: Exception) { false }
@@ -86,7 +83,12 @@ private fun keystoreKey(): SecretKey? {
     generator.init(KeyGenParameterSpec.Builder(PIN_KEY_ALIAS, KeyProperties.PURPOSE_SIGN).setDigests(KeyProperties.DIGEST_SHA256).build())
     return generator.generateKey()
 }
-private fun hashPin(pin: String): String = try { val mac = Mac.getInstance("HmacSHA256"); mac.init(keystoreKey() ?: return legacyHashPin(pin)); Base64.encodeToString(mac.doFinal(pin.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP) } catch (_: Exception) { legacyHashPin(pin) }
+private fun hashPin(pin: String): String {
+    return try {
+        val key = keystoreKey()
+        if (key == null) legacyHashPin(pin) else { val mac = Mac.getInstance("HmacSHA256"); mac.init(key); Base64.encodeToString(mac.doFinal(pin.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP) }
+    } catch (_: Exception) { legacyHashPin(pin) }
+}
 internal fun setAppPin(context: Context, pin: String) { context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).edit().putString(PIN_HASH, hashPin(pin)).apply() }
 internal fun clearAppPin(context: Context) { context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).edit().remove(PIN_HASH).apply() }
 internal fun verifyAppPin(context: Context, pin: String): Boolean { val stored = context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE).getString(PIN_HASH, "").orEmpty(); if (stored == hashPin(pin)) return true; if (stored == legacyHashPin(pin)) { setAppPin(context, pin); return true }; return false }
@@ -107,7 +109,6 @@ internal fun AppLockScreen(context: Context, onUnlocked: () -> Unit, onUseDevice
         Text("بياناتك محمية على هذا الجهاز", fontSize = 10.sp, color = Color.Gray)
     }
 }
-
 @Composable private fun PinDot(filled: Boolean) { Box(Modifier.size(13.dp), contentAlignment = Alignment.Center) { Box(Modifier.size(if (filled) 13.dp else 9.dp).background(if (filled) Purple else Color(0xFFD2CDD7), CircleShape)) } }
 
 @Composable
@@ -127,12 +128,10 @@ internal fun SecuritySettingsDialog(context: Context, hasPin: Boolean, onDismiss
     } }, confirmButton = { TextButton(onClick = onDismiss) { Text("تم") } })
     if (showBackupDialog) BackupRestoreDialog(context, { showBackupDialog = false }, onBackup, onRestore)
 }
-
 @Composable private fun SecuritySwitchRow(title: String, description: String, checked: Boolean, enabled: Boolean = true, onCheckedChange: (Boolean) -> Unit) { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.SemiBold); Spacer(Modifier.size(2.dp)); Text(description, fontSize = 10.sp, color = Color.Gray) }; Switch(checked = checked, enabled = enabled, onCheckedChange = onCheckedChange) } }
 
 @Composable private fun BackupRestoreDialog(context: Context, onDismiss: () -> Unit, onBackup: () -> Unit, onRestore: () -> Unit) {
-    val lastBackup = remember { context.getSharedPreferences(BACKUP_PREFS, Context.MODE_PRIVATE).getLong(LAST_BACKUP_AT, 0L) }
-    val formatted = if (lastBackup > 0L) SimpleDateFormat("yyyy/MM/dd - HH:mm", Locale.getDefault()).format(Date(lastBackup)) else "لم يتم إنشاء نسخة احتياطية بعد"
+    val lastBackup = remember { context.getSharedPreferences(BACKUP_PREFS, Context.MODE_PRIVATE).getLong(LAST_BACKUP_AT, 0L) }; val formatted = if (lastBackup > 0L) SimpleDateFormat("yyyy/MM/dd - HH:mm", Locale.getDefault()).format(Date(lastBackup)) else "لم يتم إنشاء نسخة احتياطية بعد"
     AlertDialog(onDismissRequest = onDismiss, title = { Text("النسخ الاحتياطي والاستعادة", fontWeight = FontWeight.Bold) }, text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Card(Modifier.fillMaxWidth(), RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF7F5FA))) { Column(Modifier.padding(14.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Text("💾", fontSize = 24.sp); Spacer(Modifier.width(8.dp)); Text("نسخة بياناتك", fontWeight = FontWeight.Bold) }; Spacer(Modifier.size(6.dp)); Text("آخر نسخة: $formatted", fontSize = 11.sp, color = Color.Gray); Spacer(Modifier.size(4.dp)); Text("احفظ النسخة في مكان آمن أو انقلها إلى تخزين سحابي حتى تتمكن من استعادة بياناتك عند الحاجة.", fontSize = 10.sp, color = Color.Gray) } }
         Button(onClick = onBackup, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Green)) { Text("💾  إنشاء نسخة احتياطية") }
@@ -148,18 +147,14 @@ internal fun exportBackup(context: Context, uri: Uri): Boolean {
         context.getSharedPreferences(BACKUP_PREFS, Context.MODE_PRIVATE).edit().putLong(LAST_BACKUP_AT, System.currentTimeMillis()).apply(); true
     } catch (_: Exception) { false }
 }
-
 private fun addZipFile(zip: ZipOutputStream, file: File, entryName: String) { zip.putNextEntry(ZipEntry(entryName)); FileInputStream(file).use { it.copyTo(zip) }; zip.closeEntry() }
 private fun addOptionalZipFile(zip: ZipOutputStream, file: File, entryName: String) { if (file.exists()) addZipFile(zip, file, entryName) }
 
 internal fun createInternalAutoBackup(context: Context) {
     runCatching {
         val dbHelper = Database(context); dbHelper.writableDatabase.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { it.moveToFirst() }; dbHelper.close()
-        val dbFile = context.getDatabasePath("add_paper.db"); if (!dbFile.exists()) return
-        val dir = File(context.filesDir, "backups").apply { mkdirs() }
-        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val target = File(dir, "pepers_$stamp.db")
-        copyFile(dbFile, target)
+        val dbFile = context.getDatabasePath("add_paper.db"); if (!dbFile.exists()) return@runCatching
+        val dir = File(context.filesDir, "backups").apply { mkdirs() }; val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()); copyFile(dbFile, File(dir, "pepers_$stamp.db"))
     }
 }
 
@@ -167,12 +162,8 @@ internal fun restoreBackup(context: Context, uri: Uri): Boolean {
     return try {
         val tempDir = File(context.cacheDir, "restore_${System.currentTimeMillis()}").apply { mkdirs() }
         context.contentResolver.openInputStream(uri)?.use { input -> ZipInputStream(input).use { zip -> var entry = zip.nextEntry; while (entry != null) { val target = File(tempDir, entry.name); if (!target.canonicalPath.startsWith(tempDir.canonicalPath + File.separator)) throw SecurityException("Invalid backup"); if (entry.isDirectory) target.mkdirs() else { target.parentFile?.mkdirs(); FileOutputStream(target).use { output -> zip.copyTo(output) } }; zip.closeEntry(); entry = zip.nextEntry } } } ?: return false
-        val dbSource = File(tempDir, "database/add_paper.db"); if (!dbSource.exists()) return false
-        copyFile(dbSource, context.getDatabasePath("add_paper.db")); File(context.dataDir, "databases/add_paper.db-wal").delete(); File(context.dataDir, "databases/add_paper.db-shm").delete()
-        val prefsSource = File(tempDir, "shared_prefs/add_paper_user.xml"); if (prefsSource.exists()) copyFile(prefsSource, File(context.dataDir, "shared_prefs/add_paper_user.xml"))
-        val imageSource = File(tempDir, "files/profile_image.jpg"); if (imageSource.exists()) copyFile(imageSource, File(context.filesDir, "profile_image.jpg"))
-        tempDir.deleteRecursively(); true
+        val dbSource = File(tempDir, "database/add_paper.db"); if (!dbSource.exists()) return false; copyFile(dbSource, context.getDatabasePath("add_paper.db")); File(context.dataDir, "databases/add_paper.db-wal").delete(); File(context.dataDir, "databases/add_paper.db-shm").delete()
+        val prefsSource = File(tempDir, "shared_prefs/add_paper_user.xml"); if (prefsSource.exists()) copyFile(prefsSource, File(context.dataDir, "shared_prefs/add_paper_user.xml")); val imageSource = File(tempDir, "files/profile_image.jpg"); if (imageSource.exists()) copyFile(imageSource, File(context.filesDir, "profile_image.jpg")); tempDir.deleteRecursively(); true
     } catch (_: Exception) { false }
 }
-
 private fun copyFile(source: File, target: File) { target.parentFile?.mkdirs(); FileInputStream(source).use { input -> FileOutputStream(target).use { output -> input.copyTo(output) } } }
