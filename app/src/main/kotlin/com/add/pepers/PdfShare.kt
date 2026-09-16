@@ -36,118 +36,146 @@ internal fun shareWebViewAsPdf(
         onFinished()
     }
 
-    try {
-        val metrics = context.resources.displayMetrics
-        val viewWidth = metrics.widthPixels.coerceAtLeast(1)
-        val contentHeight = maxOf(
-            (webView.contentHeight * webView.scale).roundToInt(),
-            webView.height,
-            metrics.heightPixels
-        ).coerceAtLeast(1)
-
-        val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(
-            viewWidth,
-            android.view.View.MeasureSpec.EXACTLY
-        )
-        val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(
-            contentHeight,
-            android.view.View.MeasureSpec.EXACTLY
-        )
-
-        webView.measure(widthSpec, heightSpec)
-        webView.layout(0, 0, webView.measuredWidth, webView.measuredHeight)
-
-        if (webView.measuredWidth <= 0 || webView.measuredHeight <= 0) {
-            finishWithError("تعذر قياس محتوى التقرير قبل إنشاء PDF")
-            return
-        }
-
-        val originalAlpha = webView.alpha
-        webView.alpha = 1f
-
+    fun createPdfFromCompleteWebView() {
         try {
-            val document = PdfDocument()
+            val metrics = context.resources.displayMetrics
+            val viewWidth = metrics.widthPixels.coerceAtLeast(1)
+
+            // WebView.contentHeight is expressed in CSS pixels. Wait until the
+            // complete HTML document has been laid out before measuring it.
+            val cssContentHeight = webView.contentHeight.coerceAtLeast(1)
+            val scaleFactor = webView.scale.coerceAtLeast(0.1f)
+            val contentHeight = maxOf(
+                (cssContentHeight * scaleFactor).roundToInt(),
+                webView.computeVerticalScrollRange(),
+                metrics.heightPixels
+            ).coerceAtLeast(1)
+
+            val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+                viewWidth,
+                android.view.View.MeasureSpec.EXACTLY
+            )
+            val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+                contentHeight,
+                android.view.View.MeasureSpec.EXACTLY
+            )
+
+            webView.measure(widthSpec, heightSpec)
+            webView.layout(0, 0, webView.measuredWidth, webView.measuredHeight)
+
+            if (webView.measuredWidth <= 0 || webView.measuredHeight <= 0) {
+                finishWithError("تعذر قياس محتوى التقرير قبل إنشاء PDF")
+                return
+            }
+
+            val originalAlpha = webView.alpha
+            webView.alpha = 1f
+
             try {
-                val pageWidth = 595
-                val pageHeight = 842
-                val scale = pageWidth.toFloat() / webView.measuredWidth.toFloat()
-                val contentHeightPerPage = pageHeight.toFloat() / scale
-                val pageCount = ceil(
-                    webView.measuredHeight / contentHeightPerPage
-                ).toInt().coerceAtLeast(1)
+                val document = PdfDocument()
+                try {
+                    val pageWidth = 595
+                    val pageHeight = 842
+                    val scale = pageWidth.toFloat() / webView.measuredWidth.toFloat()
+                    val contentHeightPerPage = pageHeight.toFloat() / scale
+                    val pageCount = ceil(
+                        webView.measuredHeight.toFloat() / contentHeightPerPage
+                    ).toInt().coerceAtLeast(1)
 
-                for (pageIndex in 0 until pageCount) {
-                    val page = document.startPage(
-                        PdfDocument.PageInfo.Builder(
-                            pageWidth,
-                            pageHeight,
-                            pageIndex + 1
-                        ).create()
-                    )
+                    for (pageIndex in 0 until pageCount) {
+                        val page = document.startPage(
+                            PdfDocument.PageInfo.Builder(
+                                pageWidth,
+                                pageHeight,
+                                pageIndex + 1
+                            ).create()
+                        )
 
-                    val canvas = page.canvas
-                    canvas.save()
-                    canvas.scale(scale, scale)
-                    canvas.translate(0f, -pageIndex * contentHeightPerPage)
-                    webView.draw(canvas)
-                    canvas.restore()
-                    document.finishPage(page)
-                }
+                        val canvas = page.canvas
+                        canvas.save()
+                        canvas.scale(scale, scale)
+                        canvas.translate(0f, -pageIndex * contentHeightPerPage)
+                        webView.draw(canvas)
+                        canvas.restore()
+                        document.finishPage(page)
+                    }
 
-                FileOutputStream(pdfFile).use { output ->
-                    document.writeTo(output)
+                    FileOutputStream(pdfFile).use { output ->
+                        document.writeTo(output)
+                    }
+                } finally {
+                    document.close()
                 }
             } finally {
-                document.close()
+                webView.alpha = originalAlpha
             }
-        } finally {
-            webView.alpha = originalAlpha
-        }
 
-        if (!pdfFile.exists() || pdfFile.length() <= 0L) {
-            finishWithError("تم إنشاء ملف PDF فارغ أو غير صالح")
+            if (!pdfFile.exists() || pdfFile.length() <= 0L) {
+                finishWithError("تم إنشاء ملف PDF فارغ أو غير صالح")
+                return
+            }
+
+            val uri = FileProvider.getUriForFile(
+                context,
+                context.packageName + ".fileprovider",
+                pdfFile
+            )
+
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(
+                    Intent.EXTRA_TEXT,
+                    "تقرير PDF من تطبيق دفتر الحسابات" +
+                        if (phone.isNotBlank()) " — رقم التواصل: $phone" else ""
+                )
+                if (email.isNotBlank()) {
+                    putExtra(Intent.EXTRA_EMAIL, arrayOf(email))
+                }
+                clipData = ClipData.newRawUri("تقرير PDF", uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            val chooser = Intent.createChooser(
+                shareIntent,
+                "مشاركة تقرير PDF عبر الرسائل أو واتساب أو البريد"
+            ).apply {
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            context.startActivity(chooser)
+            Toast.makeText(
+                context,
+                "تم تجهيز ملف PDF للمشاركة (${pageCountLabel(pdfFile)})",
+                Toast.LENGTH_SHORT
+            ).show()
+            onFinished()
+        } catch (e: Exception) {
+            finishWithError(
+                "تعذر إنشاء ملف PDF للمشاركة: " +
+                    (e.message ?: "خطأ غير معروف")
+            )
+        }
+    }
+
+    fun waitForCompleteLayout(attempt: Int = 0) {
+        val viewportHeight = context.resources.displayMetrics.heightPixels.coerceAtLeast(1)
+        val contentHeight = webView.contentHeight
+
+        // On some devices onPageFinished can arrive before WebView has completed
+        // its final layout. A retry prevents creating a PDF from only the first
+        // viewport (which previously produced roughly ten rows/days).
+        if (attempt < 6 && contentHeight <= viewportHeight / webView.scale.coerceAtLeast(0.1f)) {
+            webView.postDelayed({ waitForCompleteLayout(attempt + 1) }, 180L)
             return
         }
 
-        val uri = FileProvider.getUriForFile(
-            context,
-            context.packageName + ".fileprovider",
-            pdfFile
-        )
-
-        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/pdf"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(
-                Intent.EXTRA_TEXT,
-                "تقرير PDF من تطبيق دفتر الحسابات" +
-                    if (phone.isNotBlank()) " — رقم التواصل: $phone" else ""
-            )
-            if (email.isNotBlank()) {
-                putExtra(Intent.EXTRA_EMAIL, arrayOf(email))
-            }
-            clipData = ClipData.newRawUri("تقرير PDF", uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        val chooser = Intent.createChooser(
-            shareIntent,
-            "مشاركة تقرير PDF عبر الرسائل أو واتساب أو البريد"
-        ).apply {
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        context.startActivity(chooser)
-        Toast.makeText(
-            context,
-            "تم تجهيز ملف PDF للمشاركة",
-            Toast.LENGTH_SHORT
-        ).show()
-        onFinished()
-    } catch (e: Exception) {
-        finishWithError(
-            "تعذر إنشاء ملف PDF للمشاركة: " +
-                (e.message ?: "خطأ غير معروف")
-        )
+        createPdfFromCompleteWebView()
     }
+
+    webView.post { waitForCompleteLayout() }
+}
+
+private fun pageCountLabel(file: File): String {
+    return if (file.length() > 0L) "تم" else "جاهز"
 }
