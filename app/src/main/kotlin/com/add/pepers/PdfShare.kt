@@ -41,27 +41,28 @@ internal fun shareWebViewAsPdf(
             val metrics = context.resources.displayMetrics
             val viewWidth = metrics.widthPixels.coerceAtLeast(1)
 
-            // WebView.contentHeight is expressed in CSS pixels. Wait until the
-            // complete HTML document has been laid out before measuring it.
-            val cssContentHeight = webView.contentHeight.coerceAtLeast(1)
-            val scaleFactor = webView.scale.coerceAtLeast(0.1f)
-            val contentHeight = maxOf(
-                (cssContentHeight * scaleFactor).roundToInt(),
-                webView.computeVerticalScrollRange(),
-                metrics.heightPixels
-            ).coerceAtLeast(1)
-
+            // Measure the WebView with an unrestricted height. This is important
+            // for long monthly tables: measuring it to the screen height can
+            // produce a PDF containing only the first viewport of the table.
             val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(
                 viewWidth,
                 android.view.View.MeasureSpec.EXACTLY
             )
             val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(
-                contentHeight,
-                android.view.View.MeasureSpec.EXACTLY
+                0,
+                android.view.View.MeasureSpec.UNSPECIFIED
             )
 
             webView.measure(widthSpec, heightSpec)
-            webView.layout(0, 0, webView.measuredWidth, webView.measuredHeight)
+
+            val measuredHeight = maxOf(
+                webView.measuredHeight,
+                (webView.contentHeight * webView.scale.coerceAtLeast(0.1f)).roundToInt(),
+                webView.computeVerticalScrollRange(),
+                metrics.heightPixels
+            ).coerceAtLeast(1)
+
+            webView.layout(0, 0, viewWidth, measuredHeight)
 
             if (webView.measuredWidth <= 0 || webView.measuredHeight <= 0) {
                 finishWithError("تعذر قياس محتوى التقرير قبل إنشاء PDF")
@@ -146,7 +147,7 @@ internal fun shareWebViewAsPdf(
             context.startActivity(chooser)
             Toast.makeText(
                 context,
-                "تم تجهيز ملف PDF للمشاركة (${pageCountLabel(pdfFile)})",
+                "تم تجهيز ملف PDF الكامل للمشاركة",
                 Toast.LENGTH_SHORT
             ).show()
             onFinished()
@@ -161,11 +162,13 @@ internal fun shareWebViewAsPdf(
     fun waitForCompleteLayout(attempt: Int = 0) {
         val viewportHeight = context.resources.displayMetrics.heightPixels.coerceAtLeast(1)
         val contentHeight = webView.contentHeight
+        val scale = webView.scale.coerceAtLeast(0.1f)
+        val cssViewportHeight = viewportHeight / scale
 
-        // On some devices onPageFinished can arrive before WebView has completed
-        // its final layout. A retry prevents creating a PDF from only the first
-        // viewport (which previously produced roughly ten rows/days).
-        if (attempt < 6 && contentHeight <= viewportHeight / webView.scale.coerceAtLeast(0.1f)) {
+        // onPageFinished can occur before the WebView has completed the final
+        // layout. Retry briefly so a long month is not exported as only the
+        // first viewport of rows.
+        if (attempt < 6 && contentHeight <= cssViewportHeight) {
             webView.postDelayed({ waitForCompleteLayout(attempt + 1) }, 180L)
             return
         }
@@ -174,8 +177,4 @@ internal fun shareWebViewAsPdf(
     }
 
     webView.post { waitForCompleteLayout() }
-}
-
-private fun pageCountLabel(file: File): String {
-    return if (file.length() > 0L) "تم" else "جاهز"
 }
