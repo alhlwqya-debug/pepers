@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -108,8 +111,41 @@ private fun AppsAndProjectsDialog(onDismiss: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ProjectCard("Pepers", "تطبيق إدارة حسابات وأعمال محلات الخياطة.") { openUrl(context, REPOSITORY_URL) }
             ProjectCard("مشاريعنا على GitHub", "الوصول إلى بقية التطبيقات والمشاريع المنشورة.") { openUrl(context, PROJECTS_URL) }
+            Spacer(Modifier.height(2.dp))
+            Text("أيقونات التطبيق", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Purple)
+            IconPreviewRow()
         }
     }, confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } })
+}
+
+@Composable
+private fun IconPreviewRow() {
+    val icons = listOf(
+        "icon24" to "ملابس",
+        "icon20" to "خياطة",
+        "sijalday" to "سجل",
+        "icon9" to "مال",
+        "icon12" to "حساب",
+        "icon14" to "دخل",
+        "pdfr" to "PDF",
+        "send_message" to "رسالة",
+        "icon_whatsapp" to "واتساب",
+        "icon_sms" to "SMS",
+        "icon_facebook" to "فيسبوك",
+        "mored" to "عامل",
+        "nodata" to "فارغ"
+    )
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        icons.forEach { (name, label) ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(vertical = 2.dp)) {
+                PepersIcon(name, Modifier.size(48.dp), label)
+                Text(label, fontSize = 8.sp, color = Color.Gray)
+            }
+        }
+    }
 }
 
 @Composable
@@ -192,8 +228,6 @@ private suspend fun checkForPepersUpdate(): UpdateResult = withContext(Dispatche
     }.getOrElse { UpdateResult("تعذر التحقق من التحديثات. تأكد من اتصال الإنترنت وحاول مرة أخرى.") }
 }
 
-// لا نعتمد على BuildConfig هنا، لأن بعض بيئات CodeAssist لا تنشئ الكلاس المولد قبل الترجمة.
-// يجب إبقاء هذه القيمة متطابقة مع versionName في app/build.gradle.kts.
 private const val CURRENT_APP_VERSION = "1.2.0"
 private fun currentVersion(): String = CURRENT_APP_VERSION
 
