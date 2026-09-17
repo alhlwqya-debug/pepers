@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
@@ -28,21 +27,19 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Dialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,8 +55,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.runtime.CompositionLocalProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -131,7 +128,9 @@ internal fun AppSettingsDialog(
         }
     }
 
-    CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides LayoutDirection.Rtl) {
+    CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalLayoutDirection provides LayoutDirection.Rtl
+    ) {
         Dialog(
             onDismissRequest = onDismiss,
             properties = DialogProperties(
@@ -149,10 +148,7 @@ internal fun AppSettingsDialog(
                 tonalElevation = 8.dp
             ) {
                 Column(Modifier.fillMaxWidth()) {
-                    SettingsTopBar(
-                        onDismiss = onDismiss,
-                        version = currentVersion
-                    )
+                    SettingsTopBar(onDismiss = onDismiss)
 
                     LazyColumn(
                         modifier = Modifier
@@ -182,7 +178,10 @@ internal fun AppSettingsDialog(
                                 icon = Icons.Filled.Cloud,
                                 title = "المزامنة السحابية",
                                 description = "مزامنة البيانات تلقائيًا عند توفر الشبكة",
-                                onClick = { BackgroundSyncScheduler.requestNow(context); onDismiss() }
+                                onClick = {
+                                    BackgroundSyncScheduler.requestNow(context)
+                                    onDismiss()
+                                }
                             )
                         }
 
@@ -214,7 +213,11 @@ internal fun AppSettingsDialog(
                                 onCheckedChange = {
                                     reminderEnabled = it
                                     prefs.edit().putBoolean(DAILY_REMINDER_KEY, it).apply()
-                                    if (it) WorkReminderScheduler.schedule(context) else WorkReminderScheduler.cancel(context)
+                                    if (it) {
+                                        WorkReminderScheduler.schedule(context)
+                                    } else {
+                                        WorkReminderScheduler.cancel(context)
+                                    }
                                 }
                             )
                         }
@@ -299,14 +302,18 @@ internal fun AppSettingsDialog(
                             )
                             Text(
                                 "الإصدار $currentVersion",
-                                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
                                 textAlign = TextAlign.Center,
                                 fontSize = 11.sp,
                                 color = Color.Gray
                             )
                             Text(
                                 "فكرة وتطوير المهندس أحمد عبدالودود الدبعي",
-                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
                                 textAlign = TextAlign.Center,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -338,7 +345,7 @@ internal fun AppSettingsDialog(
 }
 
 @Composable
-private fun SettingsTopBar(onDismiss: () -> Unit, version: String) {
+private fun SettingsTopBar(onDismiss: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
