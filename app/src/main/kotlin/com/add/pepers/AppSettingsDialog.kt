@@ -2,26 +2,47 @@ package com.add.pepers
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Dialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,12 +51,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.runtime.CompositionLocalProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -68,7 +92,10 @@ internal fun AppSettingsDialog(
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull()?.removePrefix("v") ?: "غير معروف"
     }
-    fun openUrl(url: String) { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } }
+
+    fun openUrl(url: String) {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    }
 
     LaunchedEffect(checkingUpdate) {
         if (!checkingUpdate) return@LaunchedEffect
@@ -84,79 +111,412 @@ internal fun AppSettingsDialog(
                 try {
                     if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}")
                     val body = connection.inputStream.bufferedReader().use { it.readText() }
-                    Regex("\\\"tag_name\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"").find(body)?.groupValues?.get(1)?.removePrefix("v")
+                    Regex("\\\"tag_name\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")
+                        .find(body)?.groupValues?.get(1)?.removePrefix("v")
                         ?: error("لم يتم العثور على رقم الإصدار")
-                } finally { connection.disconnect() }
+                } finally {
+                    connection.disconnect()
+                }
             }
         }
         checkingUpdate = false
-        result.onSuccess { latest -> updateState = if (latest != currentVersion) "يتوفر إصدار أحدث: $latest (الإصدار الحالي $currentVersion)" else "أنت تستخدم أحدث إصدار ($currentVersion)" }
-            .onFailure { updateState = "تعذر التحقق الآن. تحقق من اتصال الإنترنت." }
+        result.onSuccess { latest ->
+            updateState = if (latest != currentVersion) {
+                "يتوفر إصدار أحدث: $latest"
+            } else {
+                "أنت تستخدم أحدث إصدار"
+            }
+        }.onFailure {
+            updateState = "تعذر التحقق الآن. تحقق من اتصال الإنترنت."
+        }
     }
 
     CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides LayoutDirection.Rtl) {
-        AlertDialog(
+        Dialog(
             onDismissRequest = onDismiss,
-            title = {
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            )
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.93f)
+                    .fillMaxHeight(0.90f),
+                shape = RoundedCornerShape(28.dp),
+                color = Color(0xFFF9F6FC),
+                tonalElevation = 8.dp
+            ) {
                 Column(Modifier.fillMaxWidth()) {
-                    Text("إعدادات التطبيق", Modifier.fillMaxWidth(), textAlign = TextAlign.Right, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                    Spacer(Modifier.size(4.dp))
-                    Text("إدارة الحساب والبيانات والتنبيهات والأمان والمساعدة ومعلومات التطبيق.", Modifier.fillMaxWidth(), textAlign = TextAlign.Right, color = Color.Gray, fontSize = 12.sp)
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingsGroupTitle("الحساب")
-                    SettingsAction("👤", "ملفي الشخصي", "الاسم ورقم الهاتف والبريد ومعلومات الملف") { onUserProfile(); onDismiss() }
-                    SettingsGroupTitle("البيانات والمزامنة")
-                    SettingsAction("☁", "المزامنة السحابية", "تعمل تلقائيًا عند توفر الشبكة وفي الخلفية") { BackgroundSyncScheduler.requestNow(context); onDismiss() }
-                    SettingsGroupTitle("الأمان والبيانات المحلية")
-                    SettingsAction("🔐", "الأمان", "قفل التطبيق والبصمة أو قفل الجهاز ورمز PIN") { onSecuritySettings(); onDismiss() }
-                    SettingsAction("💾", "النسخ الاحتياطي والاستعادة", "إنشاء نسخة احتياطية أو استعادة بيانات المحل") { onBackupSettings(); onDismiss() }
-                    SettingsGroupTitle("الإشعارات والتذكير")
-                    Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F7FA))) {
-                        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("التذكير اليومي", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                Text("تنبيه إذا لم يتم تسجيل أي عمل لليوم (افتراضيًا الساعة 8 مساءً).", color = Color.Gray, fontSize = 10.sp)
-                            }
-                            Switch(checked = reminderEnabled, onCheckedChange = {
-                                reminderEnabled = it
-                                prefs.edit().putBoolean(DAILY_REMINDER_KEY, it).apply()
-                                if (it) WorkReminderScheduler.schedule(context) else WorkReminderScheduler.cancel(context)
-                            })
+                    SettingsTopBar(
+                        onDismiss = onDismiss,
+                        version = currentVersion
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 4.dp,
+                            bottom = 18.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        item { SettingsSectionTitle("الحساب") }
+                        item {
+                            SettingsRow(
+                                icon = Icons.Filled.Person,
+                                title = "ملفي الشخصي",
+                                description = "الاسم ورقم الهاتف والبريد ومعلومات الملف",
+                                onClick = { onUserProfile(); onDismiss() }
+                            )
+                        }
+
+                        item { SettingsSectionTitle("البيانات والمزامنة") }
+                        item {
+                            SettingsRow(
+                                icon = Icons.Filled.Cloud,
+                                title = "المزامنة السحابية",
+                                description = "مزامنة البيانات تلقائيًا عند توفر الشبكة",
+                                onClick = { BackgroundSyncScheduler.requestNow(context); onDismiss() }
+                            )
+                        }
+
+                        item { SettingsSectionTitle("الأمان والبيانات المحلية") }
+                        item {
+                            SettingsRow(
+                                icon = Icons.Filled.Lock,
+                                title = "الأمان",
+                                description = "قفل التطبيق والبصمة أو قفل الجهاز ورمز PIN",
+                                onClick = { onSecuritySettings(); onDismiss() }
+                            )
+                        }
+                        item {
+                            SettingsRow(
+                                icon = Icons.Filled.Backup,
+                                title = "النسخ الاحتياطي والاستعادة",
+                                description = "إنشاء نسخة احتياطية أو استعادة بيانات المحل",
+                                onClick = { onBackupSettings(); onDismiss() }
+                            )
+                        }
+
+                        item { SettingsSectionTitle("الإشعارات والتذكير") }
+                        item {
+                            SettingsToggleRow(
+                                icon = Icons.Filled.Notifications,
+                                title = "التذكير اليومي",
+                                description = "تنبيه إذا لم يتم تسجيل أي عمل لليوم، افتراضيًا الساعة 8 مساءً.",
+                                checked = reminderEnabled,
+                                onCheckedChange = {
+                                    reminderEnabled = it
+                                    prefs.edit().putBoolean(DAILY_REMINDER_KEY, it).apply()
+                                    if (it) WorkReminderScheduler.schedule(context) else WorkReminderScheduler.cancel(context)
+                                }
+                            )
+                        }
+
+                        item { SettingsSectionTitle("المساعدة والمعلومات") }
+                        item {
+                            SettingsRow(
+                                icon = Icons.Filled.Help,
+                                title = "مساعدة ودليل الاستخدام",
+                                description = "تعرف على وظائف التطبيق وطريقة الاستخدام",
+                                onClick = { onHelp(); onDismiss() }
+                            )
+                        }
+                        item {
+                            SettingsRow(
+                                icon = Icons.Filled.Info,
+                                title = "من نحن",
+                                description = "فكرة التطبيق وتطويره ومعلومات الملكية",
+                                onClick = { onAbout(); onDismiss() }
+                            )
+                        }
+                        item {
+                            SettingsRow(
+                                icon = Icons.Filled.Info,
+                                title = "تواصل حول التطبيق",
+                                description = "فتح صفحة الدعم والمشكلات في GitHub",
+                                onClick = { openUrl(ISSUES_URL) }
+                            )
+                        }
+                        item {
+                            SettingsRow(
+                                icon = Icons.Filled.Info,
+                                title = "التراخيص والملكية",
+                                description = "عرض ترخيص المشروع ومعلومات المكونات",
+                                onClick = { openUrl(LICENSE_URL) }
+                            )
+                        }
+
+                        item { SettingsSectionTitle("التحديثات والمشاريع") }
+                        item {
+                            SettingsRow(
+                                icon = Icons.Filled.Refresh,
+                                title = "التحقق من وجود تحديث",
+                                description = updateState,
+                                onClick = {
+                                    if (!checkingUpdate) {
+                                        checkingUpdate = true
+                                        updateState = "جارٍ التحقق من آخر إصدار…"
+                                    }
+                                },
+                                trailing = {
+                                    if (checkingUpdate) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(22.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Purple
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                        item {
+                            SettingsRow(
+                                icon = Icons.Filled.Apps,
+                                title = "المزيد من التطبيقات",
+                                description = "استعراض مشاريع وتطبيقات المطور",
+                                onClick = { openUrl(REPOSITORIES_URL) }
+                            )
+                        }
+
+                        item {
+                            Spacer(Modifier.height(8.dp))
+                            HorizontalDivider(color = Color(0xFFE2DCE7))
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Pepers",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Purple
+                            )
+                            Text(
+                                "الإصدار $currentVersion",
+                                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                                textAlign = TextAlign.Center,
+                                fontSize = 11.sp,
+                                color = Color.Gray
+                            )
+                            Text(
+                                "فكرة وتطوير المهندس أحمد عبدالودود الدبعي",
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                textAlign = TextAlign.Center,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Purple
+                            )
                         }
                     }
-                    SettingsGroupTitle("المساعدة والمعلومات")
-                    SettingsAction("❓", "مساعدة ودليل الاستخدام", "تعرف على وظائف التطبيق وطريقة الاستخدام") { onHelp(); onDismiss() }
-                    SettingsAction("💬", "تواصل حول التطبيق", "فتح صفحة الدعم والمشكلات في GitHub") { openUrl(ISSUES_URL) }
-                    SettingsAction("ℹ", "من نحن", "فكرة التطبيق وتطويره ومعلومات الملكية") { onAbout(); onDismiss() }
-                    SettingsAction("📜", "التراخيص والملكية", "عرض ترخيص المشروع ومعلومات المكونات") { openUrl(LICENSE_URL) }
-                    SettingsGroupTitle("التحديثات والمشاريع")
-                    SettingsAction("↻", "التحقق من وجود تحديث", updateState) { if (!checkingUpdate) { checkingUpdate = true; updateState = "جارٍ التحقق من آخر إصدار…" } }
-                    if (checkingUpdate) CircularProgressIndicator(modifier = Modifier.size(20.dp).align(Alignment.CenterHorizontally), strokeWidth = 2.dp)
-                    SettingsAction("▦", "المزيد من التطبيقات", "استعراض مشاريع وتطبيقات المطور") { openUrl(REPOSITORIES_URL) }
-                    HorizontalDivider(Modifier.padding(top = 4.dp))
-                    Text("Pepers — الإصدار $currentVersion", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 10.sp, color = Color.Gray)
-                    Text("فكرة وتطوير المهندس أحمد عبدالودود الدبعي", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Purple)
-                    Text("الاسم والهوية والتصميم والمساهمات الأصلية تخضع للحقوق والتراخيص المبينة في المشروع، بينما تبقى مكونات الطرف الثالث خاضعة لتراخيصها الخاصة.", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 9.sp, color = Color.Gray, lineHeight = 14.sp)
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFF9F6FC))
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Button(
+                            onClick = onDismiss,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                        ) {
+                            Text("إغلاق", fontSize = 14.sp)
+                        }
+                    }
                 }
-            },
-            confirmButton = { Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = Purple)) { Text("إغلاق") } }
-        )
+            }
+        }
     }
 }
 
-@Composable private fun SettingsGroupTitle(text: String) { Text(text, Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 2.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Purple, textAlign = TextAlign.Right) }
+@Composable
+private fun SettingsTopBar(onDismiss: () -> Unit, version: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 10.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onDismiss, modifier = Modifier.size(42.dp)) {
+            Icon(
+                imageVector = Icons.Filled.ChevronLeft,
+                contentDescription = "إغلاق",
+                tint = Purple,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(
+                "إعدادات التطبيق",
+                fontSize = 21.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF29232F)
+            )
+            Text(
+                "الحساب والبيانات والأمان والمساعدة",
+                modifier = Modifier.padding(top = 2.dp),
+                fontSize = 11.sp,
+                color = Color.Gray
+            )
+        }
+    }
+    HorizontalDivider(color = Color(0xFFE2DCE7))
+}
 
-@Composable private fun SettingsAction(icon: String, title: String, description: String, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F7FA))) {
-        Row(Modifier.fillMaxWidth().padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(icon, fontSize = 20.sp, modifier = Modifier.size(28.dp), textAlign = TextAlign.Center)
-            Spacer(Modifier.size(9.dp))
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Right)
-                Text(description, fontSize = 10.sp, color = Color.Gray, textAlign = TextAlign.Right)
+@Composable
+private fun SettingsSectionTitle(text: String) {
+    Text(
+        text,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp, bottom = 3.dp, end = 4.dp),
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        color = Purple,
+        textAlign = TextAlign.Right
+    )
+}
+
+@Composable
+private fun SettingsRow(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    trailing: @Composable (() -> Unit)? = null
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            trailing?.invoke()
+            Spacer(Modifier.size(4.dp))
+            Icon(
+                imageVector = Icons.Filled.ChevronLeft,
+                contentDescription = null,
+                tint = Color(0xFFAAA3B0),
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.size(6.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF29232F),
+                    textAlign = TextAlign.Right
+                )
+                Text(
+                    description,
+                    modifier = Modifier.padding(top = 2.dp),
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Right
+                )
+            }
+            Spacer(Modifier.size(11.dp))
+            Surface(
+                modifier = Modifier.size(42.dp),
+                shape = RoundedCornerShape(13.dp),
+                color = Purple.copy(alpha = 0.10f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Purple,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 13.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange
+            )
+            Spacer(Modifier.size(8.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF29232F),
+                    textAlign = TextAlign.Right
+                )
+                Text(
+                    description,
+                    modifier = Modifier.padding(top = 2.dp),
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Right
+                )
+            }
+            Spacer(Modifier.size(11.dp))
+            Surface(
+                modifier = Modifier.size(42.dp),
+                shape = RoundedCornerShape(13.dp),
+                color = Purple.copy(alpha = 0.10f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Purple,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }
