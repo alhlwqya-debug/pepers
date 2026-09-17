@@ -1,5 +1,6 @@
 package com.add.pepers
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -17,11 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.Backup
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
@@ -79,8 +75,10 @@ internal fun AppSettingsDialog(
     onHelp: () -> Unit
 ) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE) }
-    var reminderEnabled by remember { mutableStateOf(prefs.getBoolean(DAILY_REMINDER_KEY, true)) }
+    val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
+    var reminderEnabled by remember {
+        mutableStateOf(prefs.getBoolean(DAILY_REMINDER_KEY, true))
+    }
     var updateState by remember { mutableStateOf("لم يتم التحقق بعد") }
     var checkingUpdate by remember { mutableStateOf(false) }
     val currentVersion = remember(context) {
@@ -91,7 +89,9 @@ internal fun AppSettingsDialog(
     }
 
     fun openUrl(url: String) {
-        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }
     }
 
     LaunchedEffect(checkingUpdate) {
@@ -106,7 +106,9 @@ internal fun AppSettingsDialog(
                     setRequestProperty("User-Agent", "Pepers-App")
                 }
                 try {
-                    if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}")
+                    if (connection.responseCode !in 200..299) {
+                        error("HTTP ${connection.responseCode}")
+                    }
                     val body = connection.inputStream.bufferedReader().use { it.readText() }
                     Regex("\\\"tag_name\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")
                         .find(body)?.groupValues?.get(1)?.removePrefix("v")
@@ -141,26 +143,24 @@ internal fun AppSettingsDialog(
         ) {
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth(0.93f)
+                    .fillMaxWidth(0.94f)
                     .fillMaxHeight(0.90f),
                 shape = RoundedCornerShape(28.dp),
                 color = Color(0xFFF9F6FC),
                 tonalElevation = 8.dp
             ) {
                 Column(Modifier.fillMaxWidth()) {
-                    SettingsTopBar(onDismiss = onDismiss)
+                    SettingsTopBar(onDismiss)
 
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 4.dp,
-                            bottom = 18.dp
+                            horizontal = 16.dp,
+                            vertical = 8.dp
                         ),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
                         item { SettingsSectionTitle("الحساب") }
                         item {
@@ -175,7 +175,7 @@ internal fun AppSettingsDialog(
                         item { SettingsSectionTitle("البيانات والمزامنة") }
                         item {
                             SettingsRow(
-                                icon = Icons.Filled.Cloud,
+                                icon = Icons.Filled.Refresh,
                                 title = "المزامنة السحابية",
                                 description = "مزامنة البيانات تلقائيًا عند توفر الشبكة",
                                 onClick = {
@@ -196,7 +196,7 @@ internal fun AppSettingsDialog(
                         }
                         item {
                             SettingsRow(
-                                icon = Icons.Filled.Backup,
+                                icon = Icons.Filled.Info,
                                 title = "النسخ الاحتياطي والاستعادة",
                                 description = "إنشاء نسخة احتياطية أو استعادة بيانات المحل",
                                 onClick = { onBackupSettings(); onDismiss() }
@@ -225,7 +225,7 @@ internal fun AppSettingsDialog(
                         item { SettingsSectionTitle("المساعدة والمعلومات") }
                         item {
                             SettingsRow(
-                                icon = Icons.Filled.Help,
+                                icon = Icons.Filled.Info,
                                 title = "مساعدة ودليل الاستخدام",
                                 description = "تعرف على وظائف التطبيق وطريقة الاستخدام",
                                 onClick = { onHelp(); onDismiss() }
@@ -281,7 +281,7 @@ internal fun AppSettingsDialog(
                         }
                         item {
                             SettingsRow(
-                                icon = Icons.Filled.Apps,
+                                icon = Icons.Filled.Info,
                                 title = "المزيد من التطبيقات",
                                 description = "استعراض مشاريع وتطبيقات المطور",
                                 onClick = { openUrl(REPOSITORIES_URL) }
@@ -349,15 +349,15 @@ private fun SettingsTopBar(onDismiss: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 10.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onDismiss, modifier = Modifier.size(42.dp)) {
             Icon(
-                imageVector = Icons.Filled.ChevronLeft,
+                imageVector = Icons.Filled.Info,
                 contentDescription = "إغلاق",
                 tint = Purple,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(25.dp)
             )
         }
         Column(
@@ -387,7 +387,7 @@ private fun SettingsSectionTitle(text: String) {
         text,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 3.dp, end = 4.dp),
+            .padding(top = 11.dp, bottom = 3.dp, end = 4.dp),
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
         color = Purple,
@@ -418,13 +418,6 @@ private fun SettingsRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             trailing?.invoke()
-            Spacer(Modifier.size(4.dp))
-            Icon(
-                imageVector = Icons.Filled.ChevronLeft,
-                contentDescription = null,
-                tint = Color(0xFFAAA3B0),
-                modifier = Modifier.size(20.dp)
-            )
             Spacer(Modifier.size(6.dp))
             Column(
                 modifier = Modifier.weight(1f),
@@ -485,10 +478,7 @@ private fun SettingsToggleRow(
                 .padding(horizontal = 13.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange
-            )
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
             Spacer(Modifier.size(8.dp))
             Column(
                 modifier = Modifier.weight(1f),
