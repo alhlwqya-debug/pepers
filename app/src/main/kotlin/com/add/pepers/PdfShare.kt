@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.graphics.pdf.PdfDocument
+import android.view.View
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.core.content.FileProvider
@@ -25,10 +26,7 @@ internal fun shareWebViewAsPdf(
         .replace(Regex("[^\\p{L}\\p{N}_-]+"), "_")
         .trim('_')
         .ifBlank { "report" }
-    val pdfFile = File(
-        reportsDir,
-        System.currentTimeMillis().toString() + "_" + safeName + ".pdf"
-    )
+    val pdfFile = File(reportsDir, "${System.currentTimeMillis()}_${safeName}.pdf")
 
     fun finishWithError(message: String) {
         pdfFile.delete()
@@ -36,35 +34,43 @@ internal fun shareWebViewAsPdf(
         onFinished()
     }
 
-    fun createPdfFromCompleteWebView() {
+    fun createPdf() {
         try {
+            // A software layer makes WebView.draw() reliable when rendering
+            // HTML into PdfDocument. Hardware WebView rendering can otherwise
+            // produce blank pages on some Android devices.
+            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+
             val metrics = context.resources.displayMetrics
+            val pageWidth = 595
+            val pageHeight = 842
             val viewWidth = metrics.widthPixels.coerceAtLeast(1)
 
-            val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+            val widthSpec = View.MeasureSpec.makeMeasureSpec(
                 viewWidth,
-                android.view.View.MeasureSpec.EXACTLY
+                View.MeasureSpec.EXACTLY
             )
-            val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+            val heightSpec = View.MeasureSpec.makeMeasureSpec(
                 0,
-                android.view.View.MeasureSpec.UNSPECIFIED
+                View.MeasureSpec.UNSPECIFIED
             )
 
             webView.measure(widthSpec, heightSpec)
 
-            // WebView.computeVerticalScrollRange() is protected, so do not
-            // access it here. contentHeight is the public WebView API for the
-            // HTML document height.
+            val cssContentHeight = (webView.contentHeight * webView.scale.coerceAtLeast(0.1f))
+                .roundToInt()
             val measuredHeight = maxOf(
                 webView.measuredHeight,
-                (webView.contentHeight * webView.scale.coerceAtLeast(0.1f)).roundToInt(),
-                metrics.heightPixels
+                cssContentHeight,
+                viewWidth
             ).coerceAtLeast(1)
 
             webView.layout(0, 0, viewWidth, measuredHeight)
+            webView.requestLayout()
+            webView.invalidate()
 
             if (webView.measuredWidth <= 0 || webView.measuredHeight <= 0) {
-                finishWithError("تعذر قياس محتوى التقرير قبل إنشاء PDF")
+                finishWithError("تعذر تجهيز محتوى التقرير قبل إنشاء PDF")
                 return
             }
 
@@ -74,8 +80,6 @@ internal fun shareWebViewAsPdf(
             try {
                 val document = PdfDocument()
                 try {
-                    val pageWidth = 595
-                    val pageHeight = 842
                     val scale = pageWidth.toFloat() / webView.measuredWidth.toFloat()
                     val contentHeightPerPage = pageHeight.toFloat() / scale
                     val pageCount = ceil(
@@ -90,9 +94,9 @@ internal fun shareWebViewAsPdf(
                                 pageIndex + 1
                             ).create()
                         )
-
                         val canvas = page.canvas
                         canvas.save()
+                        canvas.drawColor(android.graphics.Color.WHITE)
                         canvas.scale(scale, scale)
                         canvas.translate(0f, -pageIndex * contentHeightPerPage)
                         webView.draw(canvas)
@@ -102,6 +106,7 @@ internal fun shareWebViewAsPdf(
 
                     FileOutputStream(pdfFile).use { output ->
                         document.writeTo(output)
+                        output.flush()
                     }
                 } finally {
                     document.close()
@@ -110,14 +115,14 @@ internal fun shareWebViewAsPdf(
                 webView.alpha = originalAlpha
             }
 
-            if (!pdfFile.exists() || pdfFile.length() <= 0L) {
+            if (!pdfFile.exists() || pdfFile.length() < 100L) {
                 finishWithError("تم إنشاء ملف PDF فارغ أو غير صالح")
                 return
             }
 
             val uri = FileProvider.getUriForFile(
                 context,
-                context.packageName + ".fileprovider",
+                "${context.packageName}.fileprovider",
                 pdfFile
             )
 
@@ -138,17 +143,13 @@ internal fun shareWebViewAsPdf(
 
             val chooser = Intent.createChooser(
                 shareIntent,
-                "مشاركة تقرير PDF عبر الرسائل أو واتساب أو البريد"
+                "مشاركة تقرير PDF"
             ).apply {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
 
             context.startActivity(chooser)
-            Toast.makeText(
-                context,
-                "تم تجهيز ملف PDF الكامل للمشاركة",
-                Toast.LENGTH_SHORT
-            ).show()
+            Toast.makeText(context, "تم تجهيز ملف PDF للمشاركة", Toast.LENGTH_SHORT).show()
             onFinished()
         } catch (e: Exception) {
             finishWithError(
@@ -158,19 +159,23 @@ internal fun shareWebViewAsPdf(
         }
     }
 
-    fun waitForCompleteLayout(attempt: Int = 0) {
-        val viewportHeight = context.resources.displayMetrics.heightPixels.coerceAtLeast(1)
+    fun waitForWebView(attempt: Int = 0) {
         val contentHeight = webView.contentHeight
         val scale = webView.scale.coerceAtLeast(0.1f)
-        val cssViewportHeight = viewportHeight / scale
 
-        if (attempt < 6 && contentHeight <= cssViewportHeight) {
-            webView.postDelayed({ waitForCompleteLayout(attempt + 1) }, 180L)
+        // Wait until WebView has a real document height. This prevents the
+        // zero-height/blank-PDF race that can occur immediately after load.
+        if (attempt < 10 && contentHeight <= 0) {
+            webView.postDelayed({ waitForWebView(attempt + 1) }, 200L)
             return
         }
 
-        createPdfFromCompleteWebView()
+        webView.postDelayed({
+            createPdf()
+        }, 100L)
     }
 
-    webView.post { waitForCompleteLayout() }
+    webView.post {
+        waitForWebView()
+    }
 }
