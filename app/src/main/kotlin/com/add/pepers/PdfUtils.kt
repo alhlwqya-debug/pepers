@@ -539,7 +539,7 @@ private fun buildProfileImageHtml(path: String): String {
     return try {
         val file = File(path)
         if (!file.exists()) return ""
-        val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return ""
+        val bitmap = decodeOrientedBitmap(file.absolutePath) ?: return ""
         val scaled = Bitmap.createScaledBitmap(bitmap, 116, 116, true)
         val stream = ByteArrayOutputStream()
         scaled.compress(Bitmap.CompressFormat.JPEG, 82, stream)
