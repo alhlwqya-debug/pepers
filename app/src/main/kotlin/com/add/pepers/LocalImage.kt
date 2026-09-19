@@ -3,49 +3,53 @@ package com.add.pepers
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.exifinterface.media.ExifInterface
 
 internal fun decodeOrientedBitmap(path: String): Bitmap? {
     if (path.isBlank()) return null
 
     return try {
         val source = BitmapFactory.decodeFile(path) ?: return null
-        val orientation = ExifInterface(path).getAttributeInt(
-            ExifInterface.TAG_ORIENTATION,
-            ExifInterface.ORIENTATION_NORMAL
-        )
+        val orientation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            android.media.ExifInterface(path).getAttributeInt(
+                android.media.ExifInterface.TAG_ORIENTATION,
+                android.media.ExifInterface.ORIENTATION_NORMAL
+            )
+        } else {
+            android.media.ExifInterface.ORIENTATION_NORMAL
+        }
 
         val matrix = Matrix()
         when (orientation) {
-            ExifInterface.ORIENTATION_FLIP_HORIZONTAL ->
+            android.media.ExifInterface.ORIENTATION_FLIP_HORIZONTAL ->
                 matrix.setScale(-1f, 1f)
 
-            ExifInterface.ORIENTATION_ROTATE_180 ->
+            android.media.ExifInterface.ORIENTATION_ROTATE_180 ->
                 matrix.setRotate(180f)
 
-            ExifInterface.ORIENTATION_FLIP_VERTICAL ->
+            android.media.ExifInterface.ORIENTATION_FLIP_VERTICAL ->
                 matrix.setScale(1f, -1f)
 
-            ExifInterface.ORIENTATION_TRANSPOSE -> {
+            android.media.ExifInterface.ORIENTATION_TRANSPOSE -> {
                 matrix.setRotate(90f)
                 matrix.postScale(-1f, 1f)
             }
 
-            ExifInterface.ORIENTATION_ROTATE_90 ->
+            android.media.ExifInterface.ORIENTATION_ROTATE_90 ->
                 matrix.setRotate(90f)
 
-            ExifInterface.ORIENTATION_TRANSVERSE -> {
+            android.media.ExifInterface.ORIENTATION_TRANSVERSE -> {
                 matrix.setRotate(-90f)
                 matrix.postScale(-1f, 1f)
             }
 
-            ExifInterface.ORIENTATION_ROTATE_270 ->
+            android.media.ExifInterface.ORIENTATION_ROTATE_270 ->
                 matrix.setRotate(-90f)
         }
 
