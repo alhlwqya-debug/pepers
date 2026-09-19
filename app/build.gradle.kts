@@ -31,9 +31,6 @@ android {
 
         release {
             isDebuggable = false
-            // R8 removes unused dependency code and can keep the release
-            // within a single DEX on CodeAssist, avoiding its Arabic-locale
-            // bundletool classes2.dex validation bug.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -74,6 +71,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core:1.7.5")
     implementation("androidx.compose.material:material-icons-extended:1.7.5")
     implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
