@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
@@ -354,7 +355,7 @@ private fun SettingsTopBar(onDismiss: () -> Unit) {
     ) {
         IconButton(onClick = onDismiss, modifier = Modifier.size(42.dp)) {
             Icon(
-                imageVector = Icons.Filled.Info,
+                painter = painterResource(id = R.drawable.ic_settings),
                 contentDescription = "إغلاق",
                 tint = Purple,
                 modifier = Modifier.size(25.dp)
