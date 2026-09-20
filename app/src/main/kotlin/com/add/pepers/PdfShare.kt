@@ -197,7 +197,8 @@ internal fun shareWebViewAsPdf(
             webView.alpha = 1f
 
             try {
-                PdfDocument().use { document ->
+                val document = PdfDocument()
+                try {
                     pageStarts.forEachIndexed { pageIndex, start ->
                         val page = document.startPage(
                             PdfDocument.PageInfo.Builder(
@@ -223,6 +224,8 @@ internal fun shareWebViewAsPdf(
                         document.writeTo(output)
                         output.flush()
                     }
+                } finally {
+                    document.close()
                 }
             } finally {
                 webView.alpha = originalAlpha
