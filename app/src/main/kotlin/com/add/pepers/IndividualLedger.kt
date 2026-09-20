@@ -25,9 +25,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -293,9 +293,9 @@ internal fun IndividualLedger(
 
         Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            OutlinedButton(onClick = { val i = recordedDays.indexOfFirst { it.date == selectedDate }; if (i >= 0 && i < recordedDays.lastIndex) selectedDate = recordedDays[i + 1].date }, enabled = recordedDays.isNotEmpty(), contentPadding = PaddingValues(horizontal = 6.dp), modifier = Modifier.weight(1f).height(30.dp)) { Icon(Icons.Default.ArrowBack, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(2.dp)); Text("السابق", fontSize = 8.sp) }
+            OutlinedButton(onClick = { val i = recordedDays.indexOfFirst { it.date == selectedDate }; if (i >= 0 && i < recordedDays.lastIndex) selectedDate = recordedDays[i + 1].date }, enabled = recordedDays.isNotEmpty(), contentPadding = PaddingValues(horizontal = 6.dp), modifier = Modifier.weight(1f).height(30.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(2.dp)); Text("السابق", fontSize = 8.sp) }
             OutlinedButton(onClick = { showDatePicker = true }, contentPadding = PaddingValues(horizontal = 6.dp), modifier = Modifier.weight(1.2f).height(30.dp)) { Text(selectedDate, fontSize = 8.sp) }
-            OutlinedButton(onClick = { val i = recordedDays.indexOfFirst { it.date == selectedDate }; if (i > 0) selectedDate = recordedDays[i - 1].date }, enabled = recordedDays.isNotEmpty(), contentPadding = PaddingValues(horizontal = 6.dp), modifier = Modifier.weight(1f).height(30.dp)) { Text("التالي", fontSize = 8.sp); Spacer(Modifier.width(2.dp)); Icon(Icons.Default.ArrowForward, null, modifier = Modifier.size(14.dp)) }
+            OutlinedButton(onClick = { val i = recordedDays.indexOfFirst { it.date == selectedDate }; if (i > 0) selectedDate = recordedDays[i - 1].date }, enabled = recordedDays.isNotEmpty(), contentPadding = PaddingValues(horizontal = 6.dp), modifier = Modifier.weight(1f).height(30.dp)) { Text("التالي", fontSize = 8.sp); Spacer(Modifier.width(2.dp)); Icon(Icons.AutoMirrored.Filled.ArrowForward, null, modifier = Modifier.size(14.dp)) }
         }
 
         Spacer(Modifier.height(4.dp))
