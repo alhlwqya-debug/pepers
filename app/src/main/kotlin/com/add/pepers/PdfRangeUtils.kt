@@ -333,7 +333,8 @@ internal fun printIndividualReportRange(
                         userPhone,
                         userEmail,
                         userShop,
-                        userImagePath
+                        userImagePath,
+                        sharePdf = sharePdf
                     )
                 } else {
                     Toast.makeText(context, "اليوم المحدد لا يحتوي على تسجيل فردي", Toast.LENGTH_SHORT).show()
