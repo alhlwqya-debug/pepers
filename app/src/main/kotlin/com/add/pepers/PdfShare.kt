@@ -11,7 +11,6 @@ import androidx.core.content.FileProvider
 import org.json.JSONArray
 import java.io.File
 import java.io.FileOutputStream
-import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
@@ -120,7 +119,7 @@ internal fun shareWebViewAsPdf(
 
             val measuredWidth = webView.measuredWidth.coerceAtLeast(1)
             val cssContentHeight = (
-                webView.contentHeight * webView.scale.coerceAtLeast(0.1f)
+                webView.contentHeight
             ).roundToInt()
 
             val measuredHeight = maxOf(
@@ -302,13 +301,13 @@ internal fun shareWebViewAsPdf(
         webView.evaluateJavascript(script) { raw ->
             try {
                 val array = JSONArray(raw)
-                val scale = webView.scale.coerceAtLeast(0.1f)
+                val webViewScale = 1f
                 val breaks = ArrayList<Float>(array.length())
 
                 for (i in 0 until array.length()) {
                     val value = array.optDouble(i, Double.NaN)
                     if (!value.isNaN() && value.isFinite()) {
-                        breaks += (value.toFloat() * scale)
+                        breaks += (value.toFloat() * webViewScale)
                     }
                 }
 
