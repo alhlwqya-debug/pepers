@@ -159,14 +159,24 @@ internal fun escapeHtml(value: String): String = value
 
 // دالة لحفظ الصورة في التخزين الداخلي
 internal fun saveImageToInternalStorage(context: Context, uri: Uri): File {
-    val inputStream = context.contentResolver.openInputStream(uri)!!
-    val imageFile = File(context.filesDir, "profile_image.jpg")
-    val outputStream = FileOutputStream(imageFile)
+    val userId = context.getSharedPreferences("supabase_session", Context.MODE_PRIVATE)
+        .getString("user_id", null)
+        .orEmpty()
+        .ifBlank { "local" }
+        .replace(Regex("[^A-Za-z0-9_-]"), "_")
 
-    inputStream.copyTo(outputStream)
-    inputStream.close()
-    outputStream.close()
+    val profileDir = File(context.filesDir, "profile_images").apply { mkdirs() }
+    val imageFile = File(profileDir, "profile_$userId.jpg")
 
+    context.contentResolver.openInputStream(uri).use { input ->
+        requireNotNull(input) { "تعذر فتح الصورة المحددة" }
+        FileOutputStream(imageFile).use { output ->
+            input.copyTo(output)
+            output.flush()
+        }
+    }
+
+    require(imageFile.exists() && imageFile.length() > 0L) { "لم يتم حفظ الصورة" }
     return imageFile
 }
 
