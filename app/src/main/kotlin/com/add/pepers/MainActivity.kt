@@ -504,7 +504,12 @@ private fun PasswordAuthApp(
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(14.dp)
             ) {
-                Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.ExtraBold)
+                Image(
+                    painter = painterResource(id = R.drawable.google_logo),
+                    contentDescription = "Google",
+                    modifier = Modifier.size(22.dp),
+                    contentScale = ContentScale.Fit
+                )
                 Spacer(Modifier.size(10.dp))
                 Text(if (googleLoading) "جارٍ تسجيل الدخول..." else "المتابعة باستخدام Google")
             }
