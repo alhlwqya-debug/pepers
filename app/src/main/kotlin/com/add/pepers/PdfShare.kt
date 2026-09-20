@@ -88,7 +88,7 @@ internal fun shareWebViewAsPdf(
             onFinished()
         } catch (e: Exception) {
             finishError(
-                "تعذر مشاركة ملف PDF: \${e.message ?: "خطأ غير معروف"}"
+                "تعذر مشاركة ملف PDF: ${e.message ?: "خطأ غير معروف"}"
             )
         }
     }
@@ -171,7 +171,7 @@ internal fun shareWebViewAsPdf(
             shareFile()
         } catch (e: Exception) {
             finishError(
-                "تعذر إنشاء ملف PDF للمشاركة: \${e.message ?: "خطأ غير معروف"}"
+                "تعذر إنشاء ملف PDF للمشاركة: ${e.message ?: "خطأ غير معروف"}"
             )
         }
     }
@@ -265,14 +265,8 @@ internal fun shareWebViewAsPdf(
              * WebView.contentHeight is CSS pixels. Convert to the WebView
              * measured coordinate system before drawing and paginating.
              */
-            val cssWidth = webView.contentWidth
-                .takeIf { it > 0 }
-                ?: measuredWidth
-
             val convertedHeight = ceil(
-                cssHeight.toFloat() *
-                    measuredWidth.toFloat() /
-                    cssWidth.toFloat()
+                cssHeight.toFloat() * webView.scale
             ).toInt().coerceAtLeast(1)
 
             webView.layout(
