@@ -108,7 +108,12 @@ fun WorkLogSheet() {
 
     // ===== حالة البيانات =====
     var shops by remember { mutableStateOf(database.getShops()) }
-    var selectedShopId by remember { mutableStateOf(shops.firstOrNull()?.id) }
+    var selectedShopId by remember {
+        mutableStateOf(
+            SmartShopMemory.lastShopId(context)?.takeIf { savedId -> shops.any { it.id == savedId } }
+                ?: shops.firstOrNull()?.id
+        )
+    }
     var months by remember { mutableStateOf(selectedShopId?.let(database::getMonths) ?: emptyList()) }
     var selectedMonthId by remember { mutableStateOf(months.firstOrNull()?.id) }
     var bundle by remember { mutableStateOf(selectedMonthId?.let(database::loadMonthBundle)) }
@@ -150,7 +155,7 @@ fun WorkLogSheet() {
     var appPinEnabled by remember { mutableStateOf(hasAppPin(context)) }
     var registrationMode by remember(selectedShopId, shops) {
         mutableStateOf(
-            shops.firstOrNull { it.id == selectedShopId }?.registrationMode
+            selectedShopId?.let { id -> shops.firstOrNull { it.id == id }?.registrationMode }
                 ?: RegistrationMode.NUMERIC
         )
     }
@@ -193,9 +198,15 @@ fun WorkLogSheet() {
     // ===== دوال التحديث =====
     fun reloadShops() {
         shops = database.getShops()
-        if (shops.none { it.id == selectedShopId }) selectedShopId = shops.firstOrNull()?.id
-        registrationMode = shops.firstOrNull { it.id == selectedShopId }?.registrationMode
-            ?: RegistrationMode.NUMERIC
+        if (shops.none { it.id == selectedShopId }) {
+            selectedShopId = SmartShopMemory.lastShopId(context)?.takeIf { savedId ->
+                shops.any { it.id == savedId }
+            } ?: shops.firstOrNull()?.id
+        }
+        selectedShopId?.let { SmartShopMemory.rememberShop(context, it) }
+        registrationMode = selectedShopId?.let { id ->
+            shops.firstOrNull { it.id == id }?.registrationMode
+        } ?: RegistrationMode.NUMERIC
     }
 
     fun reloadMonths() {
@@ -235,8 +246,10 @@ fun WorkLogSheet() {
 
     // ===== تأثيرات =====
     LaunchedEffect(selectedShopId) {
-        registrationMode = shops.firstOrNull { it.id == selectedShopId }?.registrationMode
-            ?: RegistrationMode.NUMERIC
+        selectedShopId?.let { SmartShopMemory.rememberShop(context, it) }
+        registrationMode = selectedShopId?.let { id ->
+            shops.firstOrNull { it.id == id }?.registrationMode
+        } ?: RegistrationMode.NUMERIC
         months = selectedShopId?.let(database::getMonths) ?: emptyList()
         selectedMonthId = months.firstOrNull()?.id
         bundle = selectedMonthId?.let(database::loadMonthBundle)
@@ -258,7 +271,8 @@ fun WorkLogSheet() {
 
     // ===== فتح الملف الشخصي إذا كان الاسم فارغاً =====
     LaunchedEffect(Unit) {
-        // ترحيل إعداد النوع القديم مرة واحدة إلى كل محل موجود، ثم يصبح النوع مستقلاً لكل محل.
+        // لا نعيد كتابة نمط كل المحلات عند بدء التطبيق؛ لكل محل نمطه المحفوظ في قاعدة البيانات.
+        // نرحّل الإعداد العام القديم فقط إذا كانت كل المحلات ما زالت على القيمة الافتراضية NUMERIC.
         if (!prefs.getBoolean("shop_modes_migrated_v4", false)) {
             val oldMode = runCatching {
                 RegistrationMode.valueOf(
@@ -266,8 +280,14 @@ fun WorkLogSheet() {
                         ?: RegistrationMode.NUMERIC.name
                 )
             }.getOrDefault(RegistrationMode.NUMERIC)
-            database.getShops().forEach { shop ->
-                database.updateShopRegistrationMode(shop.id, oldMode)
+            val currentShops = database.getShops()
+            if (oldMode == RegistrationMode.INDIVIDUAL &&
+                currentShops.isNotEmpty() &&
+                currentShops.all { it.registrationMode == RegistrationMode.NUMERIC }
+            ) {
+                currentShops.forEach { shop ->
+                    database.updateShopRegistrationMode(shop.id, RegistrationMode.INDIVIDUAL)
+                }
             }
             prefs.edit().putBoolean("shop_modes_migrated_v4", true).remove("registration_mode").apply()
             refreshAll()
@@ -325,6 +345,7 @@ fun WorkLogSheet() {
                 onMenu = { drawerOpen = true },
                 onShopMenu = { shopMenuOpen = true },
                 onSelectShop = { id ->
+                    SmartShopMemory.rememberShop(context, id)
                     selectedShopId = id
                     registrationMode = database.getShops().firstOrNull { it.id == id }?.registrationMode ?: RegistrationMode.NUMERIC
                     shopMenuOpen = false
@@ -604,8 +625,13 @@ fun WorkLogSheet() {
                         } else if (registrationNumber.isEmpty()) {
                             Toast.makeText(context, "أدخل رقم المحل أو رقم التسجيل", Toast.LENGTH_SHORT).show()
                         } else {
-                            val id = database.addShop(name, newShopMode, registrationNumber)
+                            val id = database.addShop(
+                                name = name,
+                                registrationMode = newShopMode,
+                                registrationNumber = registrationNumber
+                            )
                             if (id > 0L) {
+                                SmartShopMemory.rememberShop(context, id)
                                 selectedShopId = id
                                 selectedMonthId = null
                                 bundle = null
@@ -1048,8 +1074,11 @@ fun WorkLogSheet() {
             onDismiss = { showRegistrationSettings = false },
             onSecurity = { showRegistrationSettings = false; showSecurityDialog = true },
             onSave = { mode ->
-                registrationMode = mode
-                selectedShopId?.let { database.updateShopRegistrationMode(it, mode) }
+                selectedShopId?.let { id ->
+                    database.updateShopRegistrationMode(id, mode)
+                    SmartShopMemory.rememberMode(context, id, mode)
+                    registrationMode = database.getShops().firstOrNull { it.id == id }?.registrationMode ?: mode
+                }
                 reloadShops()
                 showRegistrationSettings = false
             }
