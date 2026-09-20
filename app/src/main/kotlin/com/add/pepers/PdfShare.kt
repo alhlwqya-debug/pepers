@@ -7,6 +7,7 @@ import android.graphics.pdf.PdfDocument
 import android.view.View
 import android.webkit.WebView
 import android.widget.Toast
+import org.json.JSONArray
 import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileOutputStream
@@ -34,11 +35,8 @@ internal fun shareWebViewAsPdf(
         onFinished()
     }
 
-    fun createPdf() {
+    fun createPdf(safeBreaks: List<Float> = emptyList()) {
         try {
-            // A software layer makes WebView.draw() reliable when rendering
-            // HTML into PdfDocument. Hardware WebView rendering can otherwise
-            // produce blank pages on some Android devices.
             webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
 
             val metrics = context.resources.displayMetrics
@@ -57,6 +55,7 @@ internal fun shareWebViewAsPdf(
 
             webView.measure(widthSpec, heightSpec)
 
+            val scale = pageWidth.toFloat() / webView.measuredWidth.toFloat().coerceAtLeast(1f)
             val cssContentHeight = (webView.contentHeight * webView.scale.coerceAtLeast(0.1f))
                 .roundToInt()
             val measuredHeight = maxOf(
@@ -74,19 +73,47 @@ internal fun shareWebViewAsPdf(
                 return
             }
 
+            val contentHeightPerPage = pageHeight.toFloat() / scale
+
+            // WebView.draw() does not honor CSS page-break rules. Use DOM
+            // boundaries collected before drawing so section titles and table
+            // rows are not cut between PDF pages.
+            val normalizedBreaks = safeBreaks
+                .map { it.coerceIn(0f, measuredHeight.toFloat()) }
+                .filter { it > 1f && it < measuredHeight - 1f }
+                .distinct()
+                .sorted()
+
+            val pageStarts = mutableListOf<Float>()
+            var currentStart = 0f
+            while (currentStart < measuredHeight - 1f) {
+                val targetEnd = (currentStart + contentHeightPerPage)
+                    .coerceAtMost(measuredHeight.toFloat())
+
+                val candidates = normalizedBreaks.filter {
+                    it > currentStart + 24f && it <= targetEnd + 1f
+                }
+
+                val chosenEnd = if (targetEnd >= measuredHeight - 1f) {
+                    measuredHeight.toFloat()
+                } else {
+                    candidates.lastOrNull() ?: targetEnd
+                }
+
+                pageStarts.add(currentStart)
+                if (chosenEnd <= currentStart + 1f) break
+                currentStart = chosenEnd
+            }
+
+            if (pageStarts.isEmpty()) pageStarts.add(0f)
+
             val originalAlpha = webView.alpha
             webView.alpha = 1f
 
             try {
                 val document = PdfDocument()
                 try {
-                    val scale = pageWidth.toFloat() / webView.measuredWidth.toFloat()
-                    val contentHeightPerPage = pageHeight.toFloat() / scale
-                    val pageCount = ceil(
-                        webView.measuredHeight.toFloat() / contentHeightPerPage
-                    ).toInt().coerceAtLeast(1)
-
-                    for (pageIndex in 0 until pageCount) {
+                    pageStarts.forEachIndexed { pageIndex, startY ->
                         val page = document.startPage(
                             PdfDocument.PageInfo.Builder(
                                 pageWidth,
@@ -98,7 +125,7 @@ internal fun shareWebViewAsPdf(
                         canvas.save()
                         canvas.drawColor(android.graphics.Color.WHITE)
                         canvas.scale(scale, scale)
-                        canvas.translate(0f, -pageIndex * contentHeightPerPage)
+                        canvas.translate(0f, -startY)
                         webView.draw(canvas)
                         canvas.restore()
                         document.finishPage(page)
@@ -159,19 +186,74 @@ internal fun shareWebViewAsPdf(
         }
     }
 
+    fun collectSafeBreaks(callback: (List<Float>) -> Unit) {
+        // CSS page-break-inside is not enough for PdfDocument + WebView.draw().
+        // Read the actual rendered DOM and collect safe page boundaries.
+        val script = """
+            (function() {
+                var points = [0];
+                function add(v) {
+                    if (typeof v !== 'number' || !isFinite(v)) return;
+                    points.push(Math.max(0, v + window.scrollY));
+                }
+                function top(el) {
+                    var r = el.getBoundingClientRect();
+                    return r.top + window.scrollY;
+                }
+                function bottom(el) {
+                    var r = el.getBoundingClientRect();
+                    return r.bottom + window.scrollY;
+                }
+
+                document.querySelectorAll('.section-title, .section').forEach(function(el) {
+                    add(top(el));
+                    var next = el.nextElementSibling;
+                    if (next) add(bottom(next));
+                });
+
+                document.querySelectorAll('.top, .header, .profile, .panel, .cards, .two-col, .footer')
+                    .forEach(function(el) {
+                        add(top(el));
+                        add(bottom(el));
+                    });
+
+                document.querySelectorAll('table.data tr').forEach(function(row) {
+                    add(bottom(row));
+                });
+
+                add(document.body.scrollHeight);
+                return points.sort(function(a, b) { return a - b; });
+            })();
+        """.trimIndent()
+
+        webView.evaluateJavascript(script) { raw ->
+            try {
+                val array = JSONArray(raw)
+                val scale = webView.scale.coerceAtLeast(0.1f)
+                val breaks = buildList {
+                    for (i in 0 until array.length()) {
+                        add(array.optDouble(i, -1.0).toFloat() * scale)
+                    }
+                }
+                callback(breaks)
+            } catch (_: Exception) {
+                callback(emptyList())
+            }
+        }
+    }
+
     fun waitForWebView(attempt: Int = 0) {
         val contentHeight = webView.contentHeight
-        val scale = webView.scale.coerceAtLeast(0.1f)
 
-        // Wait until WebView has a real document height. This prevents the
-        // zero-height/blank-PDF race that can occur immediately after load.
         if (attempt < 10 && contentHeight <= 0) {
             webView.postDelayed({ waitForWebView(attempt + 1) }, 200L)
             return
         }
 
         webView.postDelayed({
-            createPdf()
+            collectSafeBreaks { breaks ->
+                createPdf(breaks)
+            }
         }, 100L)
     }
 
