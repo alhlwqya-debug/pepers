@@ -478,7 +478,7 @@ fun WorkLogSheet() {
                     newShopMode = RegistrationMode.NUMERIC
                     showShopDialog = true
                 },
-                onUserProfile = {
+                onNavigateToProfile = {
                     drawerOpen = false
                     showUserProfile = true
                 },
