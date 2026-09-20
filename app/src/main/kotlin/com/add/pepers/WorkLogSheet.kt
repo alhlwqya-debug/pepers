@@ -179,7 +179,10 @@ fun WorkLogSheet() {
             try {
                 val imageFile = saveImageToInternalStorage(context, uri)
                 userImagePath = imageFile.absolutePath
-                prefs.edit().putString("user_image", imageFile.absolutePath).apply()
+                prefs.edit()
+                    .putString("user_image", imageFile.absolutePath)
+                    .putBoolean("user_image_saved", true)
+                    .apply()
                 Toast.makeText(context, "تم حفظ الصورة", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(context, "تعذر حفظ الصورة", Toast.LENGTH_SHORT).show()
