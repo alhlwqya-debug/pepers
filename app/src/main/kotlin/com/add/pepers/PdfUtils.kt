@@ -233,7 +233,7 @@ table.data tbody tr:nth-child(even) { background: #fafafa; }
         }
 
         val webView = WebView(context)
-        webView.settings.javaScriptEnabled = false
+        webView.settings.javaScriptEnabled = true
         webView.settings.defaultTextEncodingName = "UTF-8"
         val activity = context as? Activity
         val decorView = activity?.window?.decorView as? ViewGroup
