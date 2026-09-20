@@ -3,17 +3,25 @@ package com.add.pepers
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
-import android.graphics.pdf.PdfDocument
-import android.view.View
+import android.os.Bundle
+import android.os.CancellationSignal
+import android.os.ParcelFileDescriptor
+import android.print.PageRange
+import android.print.PrintAttributes
+import android.print.PrintDocumentAdapter
+import android.print.PrintDocumentInfo
 import android.webkit.WebView
 import android.widget.Toast
-import org.json.JSONArray
 import androidx.core.content.FileProvider
 import java.io.File
-import java.io.FileOutputStream
-import kotlin.math.ceil
-import kotlin.math.roundToInt
 
+/**
+ * Creates and shares a WebView report as a real multi-page PDF.
+ *
+ * WebView's PrintDocumentAdapter is used instead of slicing WebView.draw()
+ * into fixed-height PdfDocument pages. The Android print framework performs
+ * the HTML pagination, avoiding arbitrary cuts through headings and rows.
+ */
 internal fun shareWebViewAsPdf(
     context: Context,
     webView: WebView,
@@ -27,126 +35,33 @@ internal fun shareWebViewAsPdf(
         .replace(Regex("[^\\p{L}\\p{N}_-]+"), "_")
         .trim('_')
         .ifBlank { "report" }
-    val pdfFile = File(reportsDir, "${System.currentTimeMillis()}_${safeName}.pdf")
+
+    val pdfFile = File(
+        reportsDir,
+        "${System.currentTimeMillis()}_${safeName}.pdf"
+    )
+
+    var finished = false
 
     fun finishWithError(message: String) {
+        if (finished) return
+        finished = true
         pdfFile.delete()
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         onFinished()
     }
 
-    fun createPdf(safeBreaks: List<Float> = emptyList()) {
+    fun finishSuccessfully() {
+        if (finished) return
+
+        if (!pdfFile.exists() || pdfFile.length() < 100L) {
+            finishWithError("تم إنشاء ملف PDF فارغ أو غير صالح")
+            return
+        }
+
+        finished = true
+
         try {
-            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-
-            val metrics = context.resources.displayMetrics
-            val pageWidth = 595
-            val pageHeight = 842
-            val viewWidth = metrics.widthPixels.coerceAtLeast(1)
-
-            val widthSpec = View.MeasureSpec.makeMeasureSpec(
-                viewWidth,
-                View.MeasureSpec.EXACTLY
-            )
-            val heightSpec = View.MeasureSpec.makeMeasureSpec(
-                0,
-                View.MeasureSpec.UNSPECIFIED
-            )
-
-            webView.measure(widthSpec, heightSpec)
-
-            val scale = pageWidth.toFloat() / webView.measuredWidth.toFloat().coerceAtLeast(1f)
-            val cssContentHeight = (webView.contentHeight * webView.scale.coerceAtLeast(0.1f))
-                .roundToInt()
-            val measuredHeight = maxOf(
-                webView.measuredHeight,
-                cssContentHeight,
-                viewWidth
-            ).coerceAtLeast(1)
-
-            webView.layout(0, 0, viewWidth, measuredHeight)
-            webView.requestLayout()
-            webView.invalidate()
-
-            if (webView.measuredWidth <= 0 || webView.measuredHeight <= 0) {
-                finishWithError("تعذر تجهيز محتوى التقرير قبل إنشاء PDF")
-                return
-            }
-
-            val contentHeightPerPage = pageHeight.toFloat() / scale
-
-            // WebView.draw() does not honor CSS page-break rules. Use DOM
-            // boundaries collected before drawing so section titles and table
-            // rows are not cut between PDF pages.
-            val normalizedBreaks = safeBreaks
-                .map { it.coerceIn(0f, measuredHeight.toFloat()) }
-                .filter { it > 1f && it < measuredHeight - 1f }
-                .distinct()
-                .sorted()
-
-            val pageStarts = mutableListOf<Float>()
-            var currentStart = 0f
-            while (currentStart < measuredHeight - 1f) {
-                val targetEnd = (currentStart + contentHeightPerPage)
-                    .coerceAtMost(measuredHeight.toFloat())
-
-                val candidates = normalizedBreaks.filter {
-                    it > currentStart + 24f && it <= targetEnd + 1f
-                }
-
-                val chosenEnd = if (targetEnd >= measuredHeight - 1f) {
-                    measuredHeight.toFloat()
-                } else {
-                    candidates.lastOrNull() ?: targetEnd
-                }
-
-                pageStarts.add(currentStart)
-                if (chosenEnd <= currentStart + 1f) break
-                currentStart = chosenEnd
-            }
-
-            if (pageStarts.isEmpty()) pageStarts.add(0f)
-
-            val originalAlpha = webView.alpha
-            webView.alpha = 1f
-
-            try {
-                val document = PdfDocument()
-                try {
-                    pageStarts.forEachIndexed { pageIndex, startY ->
-                        val page = document.startPage(
-                            PdfDocument.PageInfo.Builder(
-                                pageWidth,
-                                pageHeight,
-                                pageIndex + 1
-                            ).create()
-                        )
-                        val canvas = page.canvas
-                        canvas.save()
-                        canvas.drawColor(android.graphics.Color.WHITE)
-                        canvas.scale(scale, scale)
-                        canvas.translate(0f, -startY)
-                        webView.draw(canvas)
-                        canvas.restore()
-                        document.finishPage(page)
-                    }
-
-                    FileOutputStream(pdfFile).use { output ->
-                        document.writeTo(output)
-                        output.flush()
-                    }
-                } finally {
-                    document.close()
-                }
-            } finally {
-                webView.alpha = originalAlpha
-            }
-
-            if (!pdfFile.exists() || pdfFile.length() < 100L) {
-                finishWithError("تم إنشاء ملف PDF فارغ أو غير صالح")
-                return
-            }
-
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
@@ -176,88 +91,132 @@ internal fun shareWebViewAsPdf(
             }
 
             context.startActivity(chooser)
-            Toast.makeText(context, "تم تجهيز ملف PDF للمشاركة", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                "تم تجهيز ملف PDF للمشاركة",
+                Toast.LENGTH_SHORT
+            ).show()
             onFinished()
         } catch (e: Exception) {
+            finished = false
             finishWithError(
-                "تعذر إنشاء ملف PDF للمشاركة: " +
-                    (e.message ?: "خطأ غير معروف")
+                "تعذر مشاركة ملف PDF: ${e.message ?: "خطأ غير معروف"}"
             )
         }
     }
 
-    fun collectSafeBreaks(callback: (List<Float>) -> Unit) {
-        // CSS page-break-inside is not enough for PdfDocument + WebView.draw().
-        // Read the actual rendered DOM and collect safe page boundaries.
-        val script = """
-            (function() {
-                var points = [0];
-                function add(v) {
-                    if (typeof v !== 'number' || !isFinite(v)) return;
-                    points.push(Math.max(0, v + window.scrollY));
-                }
-                function top(el) {
-                    var r = el.getBoundingClientRect();
-                    return r.top + window.scrollY;
-                }
-                function bottom(el) {
-                    var r = el.getBoundingClientRect();
-                    return r.bottom + window.scrollY;
-                }
+    try {
+        if (webView.width <= 0 || webView.height <= 0) {
+            webView.measure(
+                android.view.View.MeasureSpec.makeMeasureSpec(
+                    context.resources.displayMetrics.widthPixels.coerceAtLeast(1),
+                    android.view.View.MeasureSpec.EXACTLY
+                ),
+                android.view.View.MeasureSpec.makeMeasureSpec(
+                    0,
+                    android.view.View.MeasureSpec.UNSPECIFIED
+                )
+            )
+            webView.layout(
+                0,
+                0,
+                webView.measuredWidth.coerceAtLeast(1),
+                webView.measuredHeight.coerceAtLeast(1)
+            )
+        }
 
-                document.querySelectorAll('.section-title, .section').forEach(function(el) {
-                    add(top(el));
-                    var next = el.nextElementSibling;
-                    if (next) add(bottom(next));
-                });
+        val adapter = webView.createPrintDocumentAdapter(jobName)
 
-                document.querySelectorAll('.top, .header, .profile, .panel, .cards, .two-col, .footer')
-                    .forEach(function(el) {
-                        add(top(el));
-                        add(bottom(el));
-                    });
+        val printAttributes = PrintAttributes.Builder()
+            .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+            .build()
 
-                document.querySelectorAll('table.data tr').forEach(function(row) {
-                    add(bottom(row));
-                });
+        adapter.onLayout(
+            null,
+            printAttributes,
+            CancellationSignal(),
+            object : PrintDocumentAdapter.LayoutResultCallback() {
+                override fun onLayoutFinished(
+                    info: PrintDocumentInfo,
+                    changed: Boolean
+                ) {
+                    if (finished) return
 
-                add(document.body.scrollHeight);
-                return points.sort(function(a, b) { return a - b; });
-            })();
-        """.trimIndent()
+                    if (info.pageCount == 0) {
+                        finishWithError("تعذر حساب صفحات التقرير")
+                        return
+                    }
 
-        webView.evaluateJavascript(script) { raw ->
-            try {
-                val array = JSONArray(raw)
-                val scale = webView.scale.coerceAtLeast(0.1f)
-                val breaks = buildList {
-                    for (i in 0 until array.length()) {
-                        add(array.optDouble(i, -1.0).toFloat() * scale)
+                    try {
+                        val destination = ParcelFileDescriptor.open(
+                            pdfFile,
+                            ParcelFileDescriptor.MODE_CREATE or
+                                ParcelFileDescriptor.MODE_TRUNCATE or
+                                ParcelFileDescriptor.MODE_WRITE_ONLY
+                        )
+
+                        adapter.onWrite(
+                            arrayOf(PageRange.ALL_PAGES),
+                            destination,
+                            CancellationSignal(),
+                            object : PrintDocumentAdapter.WriteResultCallback() {
+                                override fun onWriteFinished(
+                                    pages: Array<PageRange>
+                                ) {
+                                    try {
+                                        destination.close()
+                                    } catch (_: Exception) {
+                                    }
+                                    finishSuccessfully()
+                                }
+
+                                override fun onWriteFailed(error: CharSequence?) {
+                                    try {
+                                        destination.close()
+                                    } catch (_: Exception) {
+                                    }
+                                    finishWithError(
+                                        "تعذر كتابة ملف PDF: " +
+                                            (error?.toString()
+                                                ?: "خطأ غير معروف")
+                                    )
+                                }
+
+                                override fun onWriteCancelled() {
+                                    try {
+                                        destination.close()
+                                    } catch (_: Exception) {
+                                    }
+                                    finishWithError("تم إلغاء إنشاء ملف PDF")
+                                }
+                            }
+                        )
+                    } catch (e: Exception) {
+                        finishWithError(
+                            "تعذر فتح ملف PDF: " +
+                                (e.message ?: "خطأ غير معروف")
+                        )
                     }
                 }
-                callback(breaks)
-            } catch (_: Exception) {
-                callback(emptyList())
-            }
-        }
-    }
 
-    fun waitForWebView(attempt: Int = 0) {
-        val contentHeight = webView.contentHeight
+                override fun onLayoutFailed(error: CharSequence?) {
+                    finishWithError(
+                        "تعذر تنسيق صفحات PDF: " +
+                            (error?.toString() ?: "خطأ غير معروف")
+                    )
+                }
 
-        if (attempt < 10 && contentHeight <= 0) {
-            webView.postDelayed({ waitForWebView(attempt + 1) }, 200L)
-            return
-        }
-
-        webView.postDelayed({
-            collectSafeBreaks { breaks ->
-                createPdf(breaks)
-            }
-        }, 100L)
-    }
-
-    webView.post {
-        waitForWebView()
+                override fun onLayoutCancelled() {
+                    finishWithError("تم إلغاء تنسيق ملف PDF")
+                }
+            },
+            Bundle()
+        )
+    } catch (e: Exception) {
+        finishWithError(
+            "تعذر إنشاء PDF للمشاركة: " +
+                (e.message ?: "خطأ غير معروف")
+        )
     }
 }
