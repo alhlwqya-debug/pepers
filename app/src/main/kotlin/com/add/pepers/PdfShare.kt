@@ -37,7 +37,7 @@ internal fun shareWebViewAsPdf(
 
     val pdfFile = File(
         reportsDir,
-        "${{System.currentTimeMillis()}_${{safeName}.pdf"
+        "${System.currentTimeMillis()}_${safeName}.pdf"
     )
 
     fun finishError(message: String) {
@@ -55,7 +55,7 @@ internal fun shareWebViewAsPdf(
         try {
             val uri = FileProvider.getUriForFile(
                 context,
-                "${{context.packageName}.fileprovider",
+                "${context.packageName}.fileprovider",
                 pdfFile
             )
 
@@ -95,7 +95,7 @@ internal fun shareWebViewAsPdf(
             onFinished()
         } catch (e: Exception) {
             finishError(
-                "تعذر مشاركة ملف PDF: ${{e.message ?: "خطأ غير معروف"}"
+                "تعذر مشاركة ملف PDF: ${e.message ?: "خطأ غير معروف"}"
             )
         }
     }
@@ -187,7 +187,7 @@ internal fun shareWebViewAsPdf(
             shareFile()
         } catch (e: Exception) {
             finishError(
-                "تعذر إنشاء ملف PDF للمشاركة: ${{e.message ?: "خطأ غير معروف"}"
+                "تعذر إنشاء ملف PDF للمشاركة: ${e.message ?: "خطأ غير معروف"}"
             )
         }
     }
