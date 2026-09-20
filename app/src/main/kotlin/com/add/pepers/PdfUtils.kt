@@ -102,6 +102,8 @@ body {
     margin: 14px 0 7px;
     border-right: 4px solid #6A4C93;
     padding-right: 8px;
+    break-after: avoid;
+    page-break-after: avoid;
 }
 .cards { width: 100%; border-spacing: 7px; border-collapse: separate; margin: 0 -7px; }
 .card {
@@ -126,7 +128,7 @@ body {
 .info-table td:last-child { text-align: left; font-weight: bold; }
 table.data { width: 100%; border-collapse: collapse; margin-top: 7px; page-break-inside: auto; }
 table.data thead { display: table-header-group; }
-table.data tr { page-break-inside: avoid; page-break-after: auto; }
+table.data tr { page-break-inside: avoid; break-inside: avoid; page-break-after: auto; }
 table.data th, table.data td { border: 1px solid #cfd8dc; padding: 5px 3px; text-align: center; font-size: 8px; }
 table.data th { background: #F1EAF8; color: #4A315F; font-weight: bold; }
 table.data td.total, table.data th.total { background: #E3F2FD; font-weight: bold; }
@@ -382,10 +384,12 @@ body {
     border-right: 4px solid #6A3E91;
     padding-right: 6px;
     margin: 8px 0 5px;
+    break-after: avoid;
+    page-break-after: avoid;
 }
 table.data { width: 100%; border-collapse: collapse; page-break-inside: auto; }
 table.data thead { display: table-header-group; }
-table.data tr { page-break-inside: avoid; }
+table.data tr { page-break-inside: avoid; break-inside: avoid; }
 table.data th, table.data td { border: 1px solid #bfc5cc; padding: 4px 3px; text-align: center; }
 table.data th { background: #6A3E91; color: #fff; font-weight: bold; font-size: 8px; }
 table.data td { font-size: 8px; }
