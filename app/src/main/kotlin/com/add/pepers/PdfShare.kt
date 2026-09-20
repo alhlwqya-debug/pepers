@@ -12,7 +12,15 @@ import androidx.core.content.FileProvider
 import org.json.JSONArray
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.ceil
 
+/**
+ * Creates a PDF from the already-rendered report WebView and shares it.
+ *
+ * Pagination uses one coordinate system: WebView/view pixels.
+ * DOM/CSS coordinates are converted with WebView.scale before page
+ * boundaries are calculated. This prevents rows/days from disappearing.
+ */
 internal fun shareWebViewAsPdf(
     context: Context,
     webView: WebView,
@@ -29,7 +37,7 @@ internal fun shareWebViewAsPdf(
 
     val pdfFile = File(
         reportsDir,
-        "${System.currentTimeMillis()}_${safeName}.pdf"
+        "${{System.currentTimeMillis()}_${{safeName}.pdf"
     )
 
     fun finishError(message: String) {
@@ -47,7 +55,7 @@ internal fun shareWebViewAsPdf(
         try {
             val uri = FileProvider.getUriForFile(
                 context,
-                "${context.packageName}.fileprovider",
+                "${{context.packageName}.fileprovider",
                 pdfFile
             )
 
@@ -58,9 +66,7 @@ internal fun shareWebViewAsPdf(
                     Intent.EXTRA_TEXT,
                     buildString {
                         append("تقرير PDF من تطبيق دفتر الحسابات")
-                        if (phone.isNotBlank()) {
-                            append(" — رقم التواصل: $phone")
-                        }
+                        if (phone.isNotBlank()) append(" — رقم التواصل: $phone")
                     }
                 )
                 if (email.isNotBlank()) {
@@ -89,7 +95,7 @@ internal fun shareWebViewAsPdf(
             onFinished()
         } catch (e: Exception) {
             finishError(
-                "تعذر مشاركة ملف PDF: ${e.message ?: "خطأ غير معروف"}"
+                "تعذر مشاركة ملف PDF: ${{e.message ?: "خطأ غير معروف"}"
             )
         }
     }
@@ -98,44 +104,46 @@ internal fun shareWebViewAsPdf(
     val pageWidth = if (landscape) 842 else 595
     val pageHeight = if (landscape) 595 else 842
 
-    fun createPdf(safeBreaks: List<Float>, contentHeight: Int) {
+    /**
+     * breakPoints are VIEW pixels, not CSS pixels.
+     *
+     * WebView.contentHeight and DOM positions are CSS pixels, while
+     * WebView.draw() uses view pixels. Both are converted with the exact
+     * current WebView scale before pagination.
+     */
+    fun createPdf(breakPoints: List<Float>, contentHeightViewPx: Int) {
         try {
-            /*
-             * IMPORTANT:
-             * safeBreaks and WebView.contentHeight are CSS/layout pixels.
-             * The previous implementation converted contentHeight with
-             * webView.scale but left safeBreaks unscaled. That mixed two
-             * coordinate systems and caused later days to be skipped and
-             * rows to be split at the wrong positions.
-             *
-             * Keep all pagination calculations in the WebView's own
-             * coordinate system, and apply the PDF scale only when drawing.
-             */
             val viewWidth = webView.measuredWidth.coerceAtLeast(1)
-            val scale = pageWidth.toFloat() / viewWidth.toFloat()
-            val pageContentHeight = pageHeight.toFloat() / scale
+            val drawScale = pageWidth.toFloat() / viewWidth.toFloat()
+            val pageContentHeightViewPx = pageHeight.toFloat() / drawScale
+            val height = contentHeightViewPx.toFloat().coerceAtLeast(1f)
 
-            val breaks = safeBreaks
-                .map { it.coerceIn(0f, contentHeight.toFloat()) }
-                .filter { it > 16f && it < contentHeight - 16f }
+            val breaks = breakPoints
+                .map { it.coerceIn(0f, height) }
+                .filter { it > 1f && it < height - 1f }
                 .distinct()
                 .sorted()
 
             val pageStarts = mutableListOf<Float>()
             var start = 0f
 
-            while (start < contentHeight - 1f) {
+            while (start < height - 1f) {
                 pageStarts += start
 
                 val target = minOf(
-                    contentHeight.toFloat(),
-                    start + pageContentHeight
+                    height,
+                    start + pageContentHeightViewPx
                 )
 
-                if (target >= contentHeight - 1f) break
+                if (target >= height - 1f) break
 
+                /*
+                 * Finish each page on a real DOM boundary whenever possible.
+                 * Table rows are collected as complete units, so a day row
+                 * is never intentionally cut between two PDF pages.
+                 */
                 val safeEnd = breaks.lastOrNull {
-                    it > start + 24f && it <= target + 0.5f
+                    it > start + 1f && it <= target + 0.5f
                 }
 
                 val next = safeEnd ?: target
@@ -159,7 +167,7 @@ internal fun shareWebViewAsPdf(
                     page.canvas.apply {
                         drawColor(Color.WHITE)
                         save()
-                        scale(scale, scale)
+                        scale(drawScale, drawScale)
                         translate(0f, -startY)
                         webView.draw(this)
                         restore()
@@ -179,12 +187,18 @@ internal fun shareWebViewAsPdf(
             shareFile()
         } catch (e: Exception) {
             finishError(
-                "تعذر إنشاء ملف PDF للمشاركة: ${e.message ?: "خطأ غير معروف"}"
+                "تعذر إنشاء ملف PDF للمشاركة: ${{e.message ?: "خطأ غير معروف"}"
             )
         }
     }
 
-    fun collectSafeBreaks(contentHeight: Int) {
+    /**
+     * Read actual rendered DOM boundaries.
+     * Table rows are the primary boundaries; major report blocks are
+     * secondary boundaries. All returned CSS coordinates are converted
+     * to WebView view pixels before pagination.
+     */
+    fun collectBreaks(contentHeightCssPx: Int, webViewScale: Float) {
         val script = """
             (function() {
                 var points = [0];
@@ -201,24 +215,24 @@ internal fun shareWebViewAsPdf(
                     return el.getBoundingClientRect().bottom + window.scrollY;
                 }
 
-                document.querySelectorAll('.section-title, .section')
-                    .forEach(function(el) { add(topOf(el)); });
-
-                document.querySelectorAll(
-                    '.top, .header, .profile, .panel, .cards, .two-col'
-                ).forEach(function(el) {
-                    add(topOf(el));
-                    add(bottomOf(el));
-                });
-
                 document.querySelectorAll(
                     'table.data tbody tr, table.data tfoot tr'
                 ).forEach(function(el) {
                     add(bottomOf(el));
                 });
 
+                document.querySelectorAll(
+                    '.section-title, .section, .top, .header, .profile, ' +
+                    '.panel, .cards, .two-col'
+                ).forEach(function(el) {
+                    add(topOf(el));
+                    add(bottomOf(el));
+                });
+
                 return points
-                    .filter(function(v) { return isFinite(v); })
+                    .filter(function(v) {
+                        return isFinite(v) && v >= 0;
+                    })
                     .sort(function(a, b) { return a - b; });
             })();
         """.trimIndent()
@@ -226,24 +240,32 @@ internal fun shareWebViewAsPdf(
         webView.evaluateJavascript(script) { raw ->
             try {
                 val json = JSONArray(raw)
-                val result = ArrayList<Float>(json.length())
+                val viewBreaks = ArrayList<Float>(json.length())
 
                 for (i in 0 until json.length()) {
-                    val value = json.optDouble(i, Double.NaN)
-                    if (!value.isNaN() && value.isFinite()) {
-                        result += value.toFloat()
+                    val cssValue = json.optDouble(i, Double.NaN)
+                    if (!cssValue.isNaN() && cssValue.isFinite()) {
+                        viewBreaks += cssValue.toFloat() * webViewScale
                     }
                 }
 
-                createPdf(result, contentHeight)
+                val contentHeightViewPx = ceil(
+                    contentHeightCssPx.toFloat() * webViewScale
+                ).toInt().coerceAtLeast(1)
+
+                createPdf(viewBreaks, contentHeightViewPx)
             } catch (_: Exception) {
-                createPdf(emptyList(), contentHeight)
+                val contentHeightViewPx = ceil(
+                    contentHeightCssPx.toFloat() * webViewScale
+                ).toInt().coerceAtLeast(1)
+
+                createPdf(emptyList(), contentHeightViewPx)
             }
         }
     }
 
     fun waitUntilReady(attempt: Int = 0) {
-        if (attempt < 15 && webView.contentHeight <= 0) {
+        if (attempt < 20 && webView.contentHeight <= 0) {
             webView.postDelayed(
                 { waitUntilReady(attempt + 1) },
                 200L
@@ -267,26 +289,26 @@ internal fun shareWebViewAsPdf(
             )
 
             val measuredWidth = webView.measuredWidth.coerceAtLeast(1)
-            /*
-             * Do NOT multiply contentHeight by webView.scale here.
-             * evaluateJavascript() returns DOM coordinates in CSS pixels,
-             * so pagination must use the same CSS-pixel height.
-             */
-            val contentHeight = webView.contentHeight.coerceAtLeast(1)
+            val cssHeight = webView.contentHeight.coerceAtLeast(1)
+            val webViewScale = webView.scale.coerceAtLeast(0.1f)
+
+            val viewHeight = ceil(
+                cssHeight.toFloat() * webViewScale
+            ).toInt().coerceAtLeast(1)
 
             webView.layout(
                 0,
                 0,
                 measuredWidth,
-                contentHeight
+                viewHeight
             )
             webView.requestLayout()
             webView.invalidate()
 
             webView.postDelayed({
-                collectSafeBreaks(contentHeight)
-            }, 100L)
-        }, 150L)
+                collectBreaks(cssHeight, webViewScale)
+            }, 150L)
+        }, 200L)
     }
 
     webView.post {
