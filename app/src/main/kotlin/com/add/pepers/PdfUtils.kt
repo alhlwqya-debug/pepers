@@ -207,28 +207,35 @@ table.data tbody tr:nth-child(even) { background: #fafafa; }
             }
 
             append("<div class='section-title'>السجل اليومي</div>")
-            append("<table class='data'><thead><tr><th>اليوم</th><th>التاريخ</th>")
-            pieces.forEach { append("<th>${escapeHtml(it.name)}</th>") }
-            append("<th>المصروف</th><th class='total'>المجموع</th></tr></thead><tbody>")
-            bundle.days.forEach { day ->
-                val earned = database.calculateDayEarned(day)
-                val dayTotal = if (bundle.month.deductExpense) earned - day.expense else earned
-                append("<tr>")
-                append("<td>${escapeHtml(day.dayName)}</td>")
-                append("<td>${escapeHtml(day.date)}</td>")
-                pieces.forEach { piece ->
-                    val qty = day.quantities[piece.id] ?: 0
-                    append("<td>${if (qty == 0) "—" else amount(qty)}</td>")
-                }
-                append("<td>${if (day.expense == 0) "—" else amount(day.expense)}</td>")
-                append("<td class='total'>${if (earned == 0) "—" else signed(dayTotal)}</td>")
-                append("</tr>")
+            val reportDays = bundle.days.filter { day ->
+                day.quantities.values.any { it > 0 } || day.expense > 0
             }
-            append("</tbody><tfoot><tr>")
-            append("<th colspan='2'>الإجمالي</th>")
-            pieces.forEach { piece -> append("<th>${amount(database.pieceTotal(bundle, piece.id))}</th>") }
-            append("<th>${amount(totalExpenses)}</th><th class='total'>${signed(net)}</th>")
-            append("</tr></tfoot></table>")
+            if (reportDays.isEmpty()) {
+                append("<div class='panel' style='text-align:center;color:#78909C;'>لا توجد بيانات إنتاج أو مصروفات مسجلة لهذا الشهر.</div>")
+            } else {
+                append("<table class='data'><thead><tr><th>اليوم</th><th>التاريخ</th>")
+                pieces.forEach { append("<th>\${escapeHtml(it.name)}</th>") }
+                append("<th>المصروف</th><th class='total'>المجموع</th></tr></thead><tbody>")
+                reportDays.forEach { day ->
+                    val earned = database.calculateDayEarned(day)
+                    val dayTotal = if (bundle.month.deductExpense) earned - day.expense else earned
+                    append("<tr>")
+                    append("<td>\${escapeHtml(day.dayName)}</td>")
+                    append("<td>\${escapeHtml(day.date)}</td>")
+                    pieces.forEach { piece ->
+                        val qty = day.quantities[piece.id] ?: 0
+                        append("<td>\${if (qty == 0) "—" else amount(qty)}</td>")
+                    }
+                    append("<td>\${if (day.expense == 0) "—" else amount(day.expense)}</td>")
+                    append("<td class='total'>\${if (earned == 0) "—" else signed(dayTotal)}</td>")
+                    append("</tr>")
+                }
+                append("</tbody><tfoot><tr>")
+                append("<th colspan='2'>الإجمالي</th>")
+                pieces.forEach { piece -> append("<th>\${amount(database.pieceTotal(bundle, piece.id))}</th>") }
+                append("<th>\${amount(totalExpenses)}</th><th class='total'>\${signed(net)}</th>")
+                append("</tr></tfoot></table>")
+            }
 
             append("<div class='footer'>جميع الحقوق محفوظة © 2026 — تطبيق دفتر الحسابات / Add Paper</div>")
             append("</div></body></html>")
