@@ -161,13 +161,17 @@ class MainActivity : FragmentActivity() {
     private fun ensureLocalProfile(session: AuthSession?) {
         if (session == null) return
         val prefs = getSharedPreferences("add_paper_user", MODE_PRIVATE)
-        val currentName = prefs.getString("user_name", "").orEmpty().trim()
-        if (currentName.isBlank()) {
+        val editor = prefs.edit()
+        if (prefs.getString("user_name", "").orEmpty().trim().isBlank()) {
             val label = session.label.trim()
-            if (label.isNotBlank()) {
-                prefs.edit().putString("user_name", label.substringBefore('@')).apply()
-            }
+            if (label.isNotBlank()) editor.putString("user_name", label.substringBefore('@'))
         }
+        if (prefs.getString("user_email", "").orEmpty().trim().isBlank()) {
+            val label = session.label.trim()
+            if (label.contains("@")) editor.putString("user_email", label.lowercase())
+        }
+        editor.putString("profile_user_id", session.userId)
+        editor.apply()
     }
 
     private fun requestNotificationPermissionIfNeeded() {
