@@ -72,7 +72,7 @@ internal fun DrawerContent(
     onClose: () -> Unit,
     onSelectShop: (Long) -> Unit,
     onAddShop: () -> Unit,
-    onUserProfile: () -> Unit,
+    onNavigateToProfile: () -> Unit,
     onStatistics: () -> Unit,
     onAbout: () -> Unit,
     onHelp: () -> Unit,
@@ -112,7 +112,7 @@ internal fun DrawerContent(
                 IconButton(onClick = onClose, modifier = Modifier.size(40.dp).clip(CircleShape).background(AppSurfaceAlt)) { Icon(Icons.Default.Close, "إغلاق", tint = Purple) }
             }
             HorizontalDivider(color = AppBorder, modifier = Modifier.padding(bottom = 10.dp))
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(AppPrimarySoft).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(AppPrimarySoft).clickable { onNavigateToProfile() }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(54.dp).clip(CircleShape).background(AppSurface), contentAlignment = Alignment.Center) {
                     if (userImagePath.isNotBlank()) LocalProfileImage(path = userImagePath, contentDescription = "الصورة الشخصية", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     else Icon(Icons.Default.Person, null, tint = Purple, modifier = Modifier.size(30.dp))
@@ -135,7 +135,6 @@ internal fun DrawerContent(
             Spacer(Modifier.height(7.dp)); DrawerActionButton(text = "إضافة محل جديد", icon = "＋", tint = Purple, onClick = onAddShop, outlined = false)
             Spacer(Modifier.height(7.dp)); DrawerActionButton(text = "إعدادات المحل", icon = "⚙", tint = AppText, onClick = { showShopSettings = true }, outlined = true)
             Spacer(Modifier.height(13.dp)); DrawerSectionTitle("الوصول السريع"); Spacer(Modifier.height(6.dp))
-            DrawerActionButton(text = "ملفي الشخصي", icon = "👤", tint = Purple, onClick = onUserProfile, outlined = false)
             Spacer(Modifier.height(6.dp)); DrawerActionButton(text = "إعدادات التطبيق", icon = "⚙", tint = AppText, onClick = { showAppSettings = true }, outlined = true)
             Spacer(Modifier.height(6.dp)); DrawerActionButton(text = "الإحصائيات", icon = "▥", tint = AppText, onClick = onStatistics, outlined = true)
             Spacer(Modifier.height(13.dp)); DrawerSectionTitle("المساعدة والمعلومات"); Spacer(Modifier.height(6.dp))
@@ -152,7 +151,7 @@ internal fun DrawerContent(
     if (showAppSettings) {
         AppSettingsDialog(
             onDismiss = { showAppSettings = false },
-            onUserProfile = { showAppSettings = false; onUserProfile() },
+            onUserProfile = { showAppSettings = false; onNavigateToProfile() },
             onSecuritySettings = { showAppSettings = false; showSecuritySettings = true },
             onBackupSettings = { showAppSettings = false; showBackupSettings = true },
             onAbout = { showAppSettings = false; onAbout() },
