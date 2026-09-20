@@ -113,8 +113,8 @@ internal fun shareWebViewAsPdf(
      */
     fun createPdf(breakPoints: List<Float>, contentHeightViewPx: Int) {
         try {
-            val viewWidth = webView.measuredWidth.coerceAtLeast(1)
-            val drawScale = pageWidth.toFloat() / viewWidth.toFloat()
+            val cssPageWidth = if (landscape) 1123 else 794
+            val drawScale = pageWidth.toFloat() / cssPageWidth.toFloat()
             val pageContentHeightViewPx = pageHeight.toFloat() / drawScale
             val height = contentHeightViewPx.toFloat().coerceAtLeast(1f)
 
@@ -142,11 +142,11 @@ internal fun shareWebViewAsPdf(
                  * Table rows are collected as complete units, so a day row
                  * is never intentionally cut between two PDF pages.
                  */
-                val safeEnd = breaks.lastOrNull {
-                    it > start + 1f && it <= target + 0.5f
+                val nextBoundary = breaks.firstOrNull {
+                    it > target + 0.5f
                 }
 
-                val next = safeEnd ?: target
+                val next = nextBoundary ?: target
                 if (next <= start + 1f) break
                 start = next
             }
@@ -274,12 +274,11 @@ internal fun shareWebViewAsPdf(
         }
 
         webView.postDelayed({
-            val displayWidth = context.resources.displayMetrics.widthPixels
-                .coerceAtLeast(1)
+            val cssPageWidth = if (landscape) 1123 else 794
 
             webView.measure(
                 View.MeasureSpec.makeMeasureSpec(
-                    displayWidth,
+                    cssPageWidth,
                     View.MeasureSpec.EXACTLY
                 ),
                 View.MeasureSpec.makeMeasureSpec(
@@ -290,23 +289,18 @@ internal fun shareWebViewAsPdf(
 
             val measuredWidth = webView.measuredWidth.coerceAtLeast(1)
             val cssHeight = webView.contentHeight.coerceAtLeast(1)
-            val webViewScale = webView.scale.coerceAtLeast(0.1f)
-
-            val viewHeight = ceil(
-                cssHeight.toFloat() * webViewScale
-            ).toInt().coerceAtLeast(1)
 
             webView.layout(
                 0,
                 0,
                 measuredWidth,
-                viewHeight
+                cssHeight
             )
             webView.requestLayout()
             webView.invalidate()
 
             webView.postDelayed({
-                collectBreaks(cssHeight, webViewScale)
+                collectBreaks(cssHeight, 1f)
             }, 150L)
         }, 200L)
     }
