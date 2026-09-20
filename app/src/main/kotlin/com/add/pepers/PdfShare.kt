@@ -48,7 +48,7 @@ internal fun shareWebViewAsPdf(
         try {
             val uri = FileProvider.getUriForFile(
                 context,
-                "\${context.packageName}.fileprovider",
+                "${context.packageName}.fileprovider",
                 pdfFile
             )
 
