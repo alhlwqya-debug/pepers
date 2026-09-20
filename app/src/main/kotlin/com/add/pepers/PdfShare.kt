@@ -30,7 +30,7 @@ internal fun shareWebViewAsPdf(
 
     val pdfFile = File(
         reportsDir,
-        "\${System.currentTimeMillis()}_\${safeName}.pdf"
+        "${System.currentTimeMillis()}_${safeName}.pdf"
     )
 
     fun finishError(message: String) {
@@ -59,7 +59,7 @@ internal fun shareWebViewAsPdf(
                     Intent.EXTRA_TEXT,
                     buildString {
                         append("تقرير PDF من تطبيق دفتر الحسابات")
-                        if (phone.isNotBlank()) append(" — رقم التواصل: \$phone")
+                        if (phone.isNotBlank()) append(" — رقم التواصل: $phone")
                     }
                 )
                 if (email.isNotBlank()) {
@@ -223,7 +223,8 @@ internal fun shareWebViewAsPdf(
                 for (i in 0 until json.length()) {
                     val value = json.optDouble(i, Double.NaN)
                     if (!value.isNaN() && value.isFinite()) {
-                        result += value.toFloat()
+                        val viewScale = webView.scale.takeIf { it > 0f } ?: 1f
+                        result += (value.toFloat() * viewScale)
                     }
                 }
 
@@ -278,9 +279,30 @@ internal fun shareWebViewAsPdf(
             webView.requestLayout()
             webView.invalidate()
 
-            webView.postDelayed({
-                collectSafeBreaks(convertedHeight)
-            }, 100L)
+            // WebView.contentHeight can be stale when the report contains
+            // several tables. Read the final DOM height before drawing pages
+            // so the last rows cannot be clipped from the shared PDF.
+            webView.evaluateJavascript(
+                "Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)"
+            ) { rawHeight ->
+                val domHeight = rawHeight
+                    .trim()
+                    .toFloatOrNull()
+                    ?.takeIf { it > 0f }
+                    ?: 0f
+                val viewScale = webView.scale.takeIf { it > 0f } ?: 1f
+                val fullHeight = maxOf(
+                    convertedHeight,
+                    ceil(domHeight * viewScale).toInt()
+                ).coerceAtLeast(1)
+
+                webView.layout(0, 0, measuredWidth, fullHeight)
+                webView.requestLayout()
+                webView.invalidate()
+                webView.postDelayed({
+                    collectSafeBreaks(fullHeight)
+                }, 100L)
+            }
         }, 150L)
     }
 
