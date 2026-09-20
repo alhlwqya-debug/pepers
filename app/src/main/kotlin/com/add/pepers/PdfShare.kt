@@ -3,25 +3,17 @@ package com.add.pepers
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
-import android.os.CancellationSignal
-import android.os.ParcelFileDescriptor
-import android.print.PageRange
-import android.print.PrintAttributes
-import android.print.PrintDocumentAdapter
-import android.print.PrintDocumentInfo
+import android.graphics.Color
+import android.graphics.pdf.PdfDocument
+import android.view.View
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import org.json.JSONArray
 import java.io.File
+import java.io.FileOutputStream
+import kotlin.math.ceil
 
-/*
- * The share path intentionally uses the same WebView PrintDocumentAdapter
- * that PdfUtils.kt uses for the working Android print path.
- *
- * This is important: do NOT render the WebView with PdfDocument/draw().
- * Android's print adapter is responsible for the final PDF pagination and
- * layout, so the shared PDF follows the same rendering path as printing.
- */
 internal fun shareWebViewAsPdf(
     context: Context,
     webView: WebView,
@@ -67,7 +59,9 @@ internal fun shareWebViewAsPdf(
                     Intent.EXTRA_TEXT,
                     buildString {
                         append("تقرير PDF من تطبيق دفتر الحسابات")
-                        if (phone.isNotBlank()) append(" — رقم التواصل: $phone")
+                        if (phone.isNotBlank()) {
+                            append(" — رقم التواصل: $phone")
+                        }
                     }
                 )
                 if (email.isNotBlank()) {
@@ -101,142 +95,190 @@ internal fun shareWebViewAsPdf(
         }
     }
 
-    /*
-     * Keep these attributes identical to PdfUtils.kt's working print path.
-     * The report HTML itself still controls its @page orientation where
-     * applicable; we deliberately do not introduce a second PDF renderer.
-     */
-    val printAttributes = PrintAttributes.Builder()
-        .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
-        .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-        .build()
+    val landscape = jobName.contains("فردي")
+    val pageWidth = if (landscape) 842 else 595
+    val pageHeight = if (landscape) 595 else 842
 
-    val adapter = try {
-        webView.createPrintDocumentAdapter(jobName)
-    } catch (e: Exception) {
-        finishError(
-            "تعذر تجهيز محرك PDF: ${e.message ?: "خطأ غير معروف"}"
-        )
-        return
-    }
+    fun createPdf(safeBreaks: List<Float>, contentHeight: Int) {
+        try {
+            val viewWidth = webView.measuredWidth.coerceAtLeast(1)
+            val scale = pageWidth.toFloat() / viewWidth.toFloat()
+            val pageContentHeight = pageHeight.toFloat() / scale
 
-    val cancellationSignal = CancellationSignal()
-    var finished = false
+            val breaks = safeBreaks
+                .map { it.coerceIn(0f, contentHeight.toFloat()) }
+                .filter { it > 16f && it < contentHeight - 16f }
+                .distinct()
+                .sorted()
 
-    fun fail(message: String) {
-        if (finished) return
-        finished = true
-        cancellationSignal.cancel()
-        finishError(message)
-    }
+            val pageStarts = mutableListOf<Float>()
+            var start = 0f
 
-    try {
-        /*
-         * Run the exact same PrintDocumentAdapter lifecycle Android uses
-         * for the working print button, but write the adapter output to our
-         * own cache file so ACTION_SEND can attach that exact PDF.
-         */
-        adapter.onLayout(
-            null,
-            printAttributes,
-            cancellationSignal,
-            object : PrintDocumentAdapter.LayoutResultCallback() {
-                override fun onLayoutFinished(
-                    info: PrintDocumentInfo,
-                    changed: Boolean
-                ) {
-                    if (finished || cancellationSignal.isCanceled) {
-                        if (!finished) {
-                            finished = true
-                            onFinished()
-                        }
-                        return
-                    }
+            while (start < contentHeight - 1f) {
+                pageStarts += start
 
-                    val destination = try {
-                        ParcelFileDescriptor.open(
-                            pdfFile,
-                            ParcelFileDescriptor.MODE_CREATE or
-                                ParcelFileDescriptor.MODE_TRUNCATE or
-                                ParcelFileDescriptor.MODE_READ_WRITE
-                        )
-                    } catch (e: Exception) {
-                        fail(
-                            "تعذر إنشاء ملف PDF: ${e.message ?: "خطأ غير معروف"}"
-                        )
-                        return
-                    }
+                val target = minOf(
+                    contentHeight.toFloat(),
+                    start + pageContentHeight
+                )
 
-                    try {
-                        adapter.onWrite(
-                            arrayOf(PageRange.ALL_PAGES),
-                            destination,
-                            cancellationSignal,
-                            object : PrintDocumentAdapter.WriteResultCallback() {
-                                override fun onWriteFinished(
-                                    pages: Array<PageRange>
-                                ) {
-                                    runCatching { destination.close() }
+                if (target >= contentHeight - 1f) break
 
-                                    if (finished || cancellationSignal.isCanceled) {
-                                        if (!finished) {
-                                            finished = true
-                                            onFinished()
-                                        }
-                                        return
-                                    }
-
-                                    if (!pdfFile.exists() || pdfFile.length() < 100L) {
-                                        fail("تم إنشاء ملف PDF فارغ أو غير صالح")
-                                        return
-                                    }
-
-                                    finished = true
-                                    shareFile()
-                                }
-
-                                override fun onWriteFailed(error: CharSequence?) {
-                                    runCatching { destination.close() }
-                                    fail(
-                                        "تعذر إنشاء ملف PDF للمشاركة: ${error ?: "خطأ غير معروف"}"
-                                    )
-                                }
-
-                                override fun onWriteCancelled() {
-                                    runCatching { destination.close() }
-                                    if (!finished) {
-                                        finished = true
-                                        onFinished()
-                                    }
-                                }
-                            }
-                        )
-                    } catch (e: Exception) {
-                        runCatching { destination.close() }
-                        fail(
-                            "تعذر كتابة ملف PDF: ${e.message ?: "خطأ غير معروف"}"
-                        )
-                    }
+                val safeEnd = breaks.lastOrNull {
+                    it > start + 24f && it <= target + 0.5f
                 }
 
-                override fun onLayoutFailed(error: CharSequence?) {
-                    fail(
-                        "تعذر تجهيز التقرير للطباعة/PDF: ${error ?: "خطأ غير معروف"}"
+                val next = safeEnd ?: target
+                if (next <= start + 1f) break
+                start = next
+            }
+
+            if (pageStarts.isEmpty()) pageStarts += 0f
+
+            val document = PdfDocument()
+            try {
+                pageStarts.forEachIndexed { index, startY ->
+                    val page = document.startPage(
+                        PdfDocument.PageInfo.Builder(
+                            pageWidth,
+                            pageHeight,
+                            index + 1
+                        ).create()
                     )
+
+                    page.canvas.apply {
+                        drawColor(Color.WHITE)
+                        save()
+                        scale(scale, scale)
+                        translate(0f, -startY)
+                        webView.draw(this)
+                        restore()
+                    }
+
+                    document.finishPage(page)
                 }
 
-                override fun onLayoutCancelled() {
-                    if (!finished) {
-                        finished = true
-                        onFinished()
+                FileOutputStream(pdfFile).use { output ->
+                    document.writeTo(output)
+                    output.flush()
+                }
+            } finally {
+                document.close()
+            }
+
+            shareFile()
+        } catch (e: Exception) {
+            finishError(
+                "تعذر إنشاء ملف PDF للمشاركة: ${e.message ?: "خطأ غير معروف"}"
+            )
+        }
+    }
+
+    fun collectSafeBreaks(contentHeight: Int) {
+        val script = """
+            (function() {
+                var points = [0];
+
+                function add(v) {
+                    if (typeof v === 'number' && isFinite(v)) points.push(v);
+                }
+
+                function topOf(el) {
+                    return el.getBoundingClientRect().top + window.scrollY;
+                }
+
+                function bottomOf(el) {
+                    return el.getBoundingClientRect().bottom + window.scrollY;
+                }
+
+                document.querySelectorAll('.section-title, .section')
+                    .forEach(function(el) { add(topOf(el)); });
+
+                document.querySelectorAll(
+                    '.top, .header, .profile, .panel, .cards, .two-col'
+                ).forEach(function(el) {
+                    add(topOf(el));
+                    add(bottomOf(el));
+                });
+
+                document.querySelectorAll(
+                    'table.data tbody tr, table.data tfoot tr'
+                ).forEach(function(el) {
+                    add(bottomOf(el));
+                });
+
+                return points
+                    .filter(function(v) { return isFinite(v); })
+                    .sort(function(a, b) { return a - b; });
+            })();
+        """.trimIndent()
+
+        webView.evaluateJavascript(script) { raw ->
+            try {
+                val json = JSONArray(raw)
+                val result = ArrayList<Float>(json.length())
+
+                for (i in 0 until json.length()) {
+                    val value = json.optDouble(i, Double.NaN)
+                    if (!value.isNaN() && value.isFinite()) {
+                        result += value.toFloat()
                     }
                 }
-            },
-            null
-        )
-    } catch (e: Exception) {
-        fail(
-            "تعذر تشغيل مولد PDF: ${e.message ?: "خطأ غير معروف"}"
-        )
+
+                createPdf(result, contentHeight)
+            } catch (_: Exception) {
+                createPdf(emptyList(), contentHeight)
+            }
+        }
+    }
+
+    fun waitUntilReady(attempt: Int = 0) {
+        if (attempt < 15 && webView.contentHeight <= 0) {
+            webView.postDelayed(
+                { waitUntilReady(attempt + 1) },
+                200L
+            )
+            return
+        }
+
+        webView.postDelayed({
+            val displayWidth = context.resources.displayMetrics.widthPixels
+                .coerceAtLeast(1)
+
+            webView.measure(
+                View.MeasureSpec.makeMeasureSpec(
+                    displayWidth,
+                    View.MeasureSpec.EXACTLY
+                ),
+                View.MeasureSpec.makeMeasureSpec(
+                    0,
+                    View.MeasureSpec.UNSPECIFIED
+                )
+            )
+
+            val measuredWidth = webView.measuredWidth.coerceAtLeast(1)
+            val cssHeight = webView.contentHeight.coerceAtLeast(1)
+
+            val convertedHeight = ceil(
+                cssHeight.toFloat() * webView.scale
+            ).toInt().coerceAtLeast(1)
+
+            webView.layout(
+                0,
+                0,
+                measuredWidth,
+                convertedHeight
+            )
+            webView.requestLayout()
+            webView.invalidate()
+
+            webView.postDelayed({
+                collectSafeBreaks(convertedHeight)
+            }, 100L)
+        }, 150L)
+    }
+
+    webView.post {
+        waitUntilReady()
     }
 }
