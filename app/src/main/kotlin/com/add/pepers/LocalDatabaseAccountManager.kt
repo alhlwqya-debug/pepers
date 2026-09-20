@@ -158,9 +158,7 @@ internal object LocalDatabaseAccountManager {
                 null,
                 SQLiteDatabase.OPEN_READWRITE
             ).use { db ->
-                db.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { cursor ->
-                    while (cursor.moveToNext()) Unit
-                }
+                db.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { }
             }
         }
     }
