@@ -12,7 +12,6 @@ import androidx.core.content.FileProvider
 import org.json.JSONArray
 import java.io.File
 import java.io.FileOutputStream
-import kotlin.math.ceil
 
 internal fun shareWebViewAsPdf(
     context: Context,
@@ -101,6 +100,17 @@ internal fun shareWebViewAsPdf(
 
     fun createPdf(safeBreaks: List<Float>, contentHeight: Int) {
         try {
+            /*
+             * IMPORTANT:
+             * safeBreaks and WebView.contentHeight are CSS/layout pixels.
+             * The previous implementation converted contentHeight with
+             * webView.scale but left safeBreaks unscaled. That mixed two
+             * coordinate systems and caused later days to be skipped and
+             * rows to be split at the wrong positions.
+             *
+             * Keep all pagination calculations in the WebView's own
+             * coordinate system, and apply the PDF scale only when drawing.
+             */
             val viewWidth = webView.measuredWidth.coerceAtLeast(1)
             val scale = pageWidth.toFloat() / viewWidth.toFloat()
             val pageContentHeight = pageHeight.toFloat() / scale
@@ -257,23 +267,24 @@ internal fun shareWebViewAsPdf(
             )
 
             val measuredWidth = webView.measuredWidth.coerceAtLeast(1)
-            val cssHeight = webView.contentHeight.coerceAtLeast(1)
-
-            val convertedHeight = ceil(
-                cssHeight.toFloat() * webView.scale
-            ).toInt().coerceAtLeast(1)
+            /*
+             * Do NOT multiply contentHeight by webView.scale here.
+             * evaluateJavascript() returns DOM coordinates in CSS pixels,
+             * so pagination must use the same CSS-pixel height.
+             */
+            val contentHeight = webView.contentHeight.coerceAtLeast(1)
 
             webView.layout(
                 0,
                 0,
                 measuredWidth,
-                convertedHeight
+                contentHeight
             )
             webView.requestLayout()
             webView.invalidate()
 
             webView.postDelayed({
-                collectSafeBreaks(convertedHeight)
+                collectSafeBreaks(contentHeight)
             }, 100L)
         }, 150L)
     }
