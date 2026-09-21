@@ -28,7 +28,7 @@ internal fun shareAssistantLedgerPdf(
     val withdrawn = withdrawals.sumOf { it.amount }
     val balance = earned + expenses - withdrawn
 
-    fun esc(value: String): String = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace(""", "&quot;")
+    fun esc(value: String): String = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
     fun money(value: Int): String = String.format(Locale.US, "%,d", value)
 
     val html = buildString {
