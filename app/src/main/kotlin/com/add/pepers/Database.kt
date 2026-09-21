@@ -1834,6 +1834,30 @@ SQLiteOpenHelper(
         return writableDatabase.insertWithOnConflict("assistant_daily_records", null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
+    /**
+     * Convenience API used by the integrated daily registration screen.
+     * It keeps the assistant record keyed by the same assistant/day pair,
+     * so saving again updates the existing row instead of creating a duplicate.
+     */
+    fun setAssistantDailyEntry(
+        assistantId: Long,
+        dayId: Long,
+        status: AssistantDailyStatus,
+        withdrawal: Int,
+        note: String,
+        reportedQuantity: Int = 0
+    ): Long = setAssistantDailyRecord(
+        assistantId = assistantId,
+        dayId = dayId,
+        status = status,
+        expense = withdrawal.coerceAtLeast(0),
+        expenseNote = note,
+        notes = note,
+        reportedQuantity = reportedQuantity,
+        enteredBy = "TAILOR",
+        approvalStatus = "APPROVED"
+    )
+
     fun getAssistantDailyRecord(assistantId: Long, dayId: Long): AssistantDailyRecord? {
         readableDatabase.query("assistant_daily_records", null, "assistant_id = ? AND day_id = ?", arrayOf(assistantId.toString(), dayId.toString()), null, null, null, "1").use { c ->
             if (c.moveToFirst()) {
