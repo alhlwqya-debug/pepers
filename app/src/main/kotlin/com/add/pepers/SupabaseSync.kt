@@ -545,7 +545,6 @@ private object LocalSyncSnapshot {
             }
         }
 
-        db.close()
         val assistants = JSONArray()
         db.rawQuery("SELECT id,shop_id,worker_id,name,task,start_date,end_date,active,notes FROM assistants", null).use { c ->
             while (c.moveToNext()) {
