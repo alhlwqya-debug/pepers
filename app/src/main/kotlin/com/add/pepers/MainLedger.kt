@@ -93,6 +93,9 @@ internal fun MainLedger(
     var searchText by remember { mutableStateOf("") }
     var compactActions by remember { mutableStateOf(false) }
     var dayFilter by remember { mutableStateOf(LedgerDayFilter.ALL) }
+    var selectedAssistantDayId by remember(bundle.month.id) {
+        mutableStateOf(bundle.days.firstOrNull { it.date == todayString() }?.id ?: bundle.days.firstOrNull()?.id)
+    }
 
     val totalEarned = database.calculateMonthEarned(bundle)
     val totalExpenses = database.calculateMonthExpenses(bundle)
@@ -371,7 +374,7 @@ internal fun MainLedger(
                         items(visibleDays, key = { it.id }) { day ->
                             val earned = database.calculateDayEarned(day)
                             val dayTotal = if (bundle.month.deductExpense) earned - day.expense else earned
-                            Row {
+                            Row(Modifier.clickable { selectedAssistantDayId = day.id }) {
                                 CellText(day.dayName, wDay, rowH, size = 10)
                                 CellText(day.date, wDate, rowH, size = 10)
                                 pieces.forEach { piece ->
@@ -406,6 +409,20 @@ internal fun MainLedger(
                     CellText(net.toString(), wTotal, 34.dp, HeaderBlue, bold = true)
                 }
             }
+        }
+
+        // قسم المساعدين مرتبط مباشرة باليوم المحدد في نفس سجل الخياط.
+        val selectedAssistantDay = bundle.days.firstOrNull { it.id == selectedAssistantDayId }
+        if (selectedAssistantDay != null && selectedShopId != null) {
+            AssistantDailySection(
+                database = database,
+                shopId = selectedShopId,
+                bundle = bundle,
+                day = selectedAssistantDay,
+                pieces = pieces,
+                onSaved = { onEditQuantity(selectedAssistantDay, pieces.firstOrNull() ?: return@AssistantDailySection, "") }
+            )
+            Spacer(Modifier.height(4.dp))
         }
 
         Column(
