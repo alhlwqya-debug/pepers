@@ -185,3 +185,36 @@ grant execute on function public.request_assistant_link(text) to authenticated;
 grant execute on function public.approve_assistant_link(uuid,boolean) to authenticated;
 grant execute on function public.my_assistant_link() to authenticated;
 grant execute on function public.pending_assistant_links() to authenticated;
+
+
+create unique index if not exists assistant_one_pending_link_idx
+on public.assistant_link_requests(assistant_id, assistant_user_id)
+where status='PENDING';
+
+create or replace function public.upsert_my_assistant_daily(
+  p_date text, p_quantity integer, p_expense integer, p_note text default ''
+) returns jsonb language plpgsql security definer set search_path=public
+as $f$
+declare a public.assistants%rowtype; d public.assistant_daily_records%rowtype;
+begin
+  select a.* into a from public.assistants a
+  join public.assistant_link_requests r on r.assistant_id=a.id
+  where r.assistant_user_id=auth.uid() and r.status='APPROVED' and a.active=true
+    and p_date >= a.start_date and (a.end_date is null or p_date <= a.end_date)
+  limit 1;
+  if a.id is null then raise exception 'ASSISTANT_NOT_LINKED'; end if;
+  insert into public.assistant_daily_records(
+    user_id,legacy_id,record_key,source_device_id,assistant_legacy_id,assistant_record_key,
+    day_legacy_id,day_record_key,status,expense,expense_note,notes,reported_quantity,entered_by,approval_status
+  )
+  values(a.user_id,extract(epoch from now())::bigint,
+    'shared:'||a.id::text||':'||p_date,'assistant-account:'||auth.uid()::text,
+    a.legacy_id,a.record_key,0,'shared-day:'||p_date,'WORKED',greatest(p_expense,0),coalesce(p_note,''),coalesce(p_note,''),
+    greatest(p_quantity,0),'ASSISTANT','PENDING')
+  on conflict (user_id,record_key) do update set
+    expense=excluded.expense,expense_note=excluded.expense_note,notes=excluded.notes,
+    reported_quantity=excluded.reported_quantity,entered_by='ASSISTANT',approval_status='PENDING',updated_at=now()
+  returning * into d;
+  return jsonb_build_object('status','PENDING','date',p_date,'quantity',d.reported_quantity,'expense',d.expense,'assistant_id',a.id);
+end $f$;
+grant execute on function public.upsert_my_assistant_daily(text,integer,integer,text) to authenticated;
