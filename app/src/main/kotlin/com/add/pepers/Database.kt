@@ -1883,7 +1883,11 @@ SQLiteOpenHelper(
     fun calculateAssistantBalance(assistant: AssistantRecord, bundles: List<MonthBundle>): Int {
         val earned = bundles.sumOf { calculateAssistantEarned(assistant, it) }
         val expenses = bundles.sumOf { calculateAssistantExpense(assistant.id, it) }
-        val withdrawals = calculateAssistantWithdrawals(assistant.id)
+        val withdrawals = calculateAssistantWithdrawals(
+            assistant.id,
+            fromDate = assistant.startDate,
+            toDate = assistant.endDate
+        )
         return earned + expenses - withdrawals
     }
 
