@@ -1,6 +1,7 @@
 package com.add.pepers
 
 import android.widget.Toast
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,6 +33,7 @@ internal fun AssistantManagerDialog(shop: ShopRecord, onDismiss: () -> Unit) {
     var assistants by remember(shop.id) { mutableStateOf(database.getAssistants(shop.id)) }
     var showEditor by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<AssistantRecord?>(null) }
+    val userPrefs = remember { context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE) }
 
     AlertDialog(
         onDismissRequest = { database.close(); onDismiss() },
@@ -44,8 +46,21 @@ internal fun AssistantManagerDialog(shop: ShopRecord, onDismiss: () -> Unit) {
                 } else {
                     LazyColumn(Modifier.fillMaxWidth().height(240.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(assistants, key = { it.id }) { assistant ->
-                            OutlinedButton(onClick = { selected = assistant; showEditor = true }, modifier = Modifier.fillMaxWidth()) {
-                                Text(assistant.name + " — " + assistant.task.ifBlank { "مهمة غير محددة" })
+                            Column(Modifier.fillMaxWidth()) {
+                                OutlinedButton(onClick = { selected = assistant; showEditor = true }, modifier = Modifier.fillMaxWidth()) {
+                                    Text(assistant.name + " — " + assistant.task.ifBlank { "مهمة غير محددة" })
+                                }
+                                OutlinedButton(onClick = {
+                                    shareAssistantLedgerPdf(
+                                        context = context,
+                                        database = database,
+                                        shop = shop,
+                                        assistant = assistant,
+                                        userName = userPrefs.getString("user_name", "").orEmpty(),
+                                        userPhone = userPrefs.getString("user_phone", "").orEmpty(),
+                                        userEmail = userPrefs.getString("user_email", "").orEmpty()
+                                    )
+                                }, modifier = Modifier.fillMaxWidth()) { Text("كشف PDF وإرسال") }
                             }
                         }
                     }
