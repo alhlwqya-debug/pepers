@@ -1843,12 +1843,18 @@ SQLiteOpenHelper(
             if (day.date < activeStart || (activeEnd != null && day.date > activeEnd)) return@forEach
             val daily = getAssistantDailyRecord(assistant.id, day.id)
             if (daily?.status == AssistantDailyStatus.ABSENT) return@forEach
-            day.quantities.forEach { (pieceId, quantity) ->
-                if (quantity > 0) total += quantity * assistantRateOnDate(assistant.id, pieceId, day.date)
+            val shopMode = getShops().firstOrNull { it.id == bundle.month.shopId }?.registrationMode
+            if (shopMode == RegistrationMode.INDIVIDUAL) {
+                getIndividualEntries(bundle.month.id, day.date).forEach { entry ->
+                    entry.quantities.forEach { (pieceId, quantity) ->
+                        if (quantity > 0) total += quantity * assistantRateOnDate(assistant.id, pieceId, day.date)
+                    }
+                }
+            } else {
+                day.quantities.forEach { (pieceId, quantity) ->
+                    if (quantity > 0) total += quantity * assistantRateOnDate(assistant.id, pieceId, day.date)
+                }
             }
-            // Individual registration uses the same day and piece quantities,
-            // so calculateAssistantEarnedFromIndividual() can be added without
-            // changing the assistant's rate model.
         }
         return total
     }
