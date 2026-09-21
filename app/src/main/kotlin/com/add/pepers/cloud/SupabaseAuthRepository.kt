@@ -261,6 +261,21 @@ class SupabaseAuthRepository(private val context: Context) {
         }.getOrElse { AuthResult.Failure(context.getString(R.string.error_network)) }
     }
 
+    suspend fun pendingAssistantDaily(): String = withContext(Dispatchers.IO) {
+        val session = savedSession() ?: return@withContext "[]"
+        runCatching { postRpc("pending_assistant_daily", JSONObject(), session.accessToken).body }.getOrDefault("[]")
+    }
+
+    suspend fun approveAssistantDaily(id: String, approve: Boolean, quantity: Int? = null, expense: Int? = null): Boolean = withContext(Dispatchers.IO) {
+        val session = savedSession() ?: return@withContext false
+        runCatching {
+            val body = JSONObject().put("p_record_id", id).put("p_approve", approve)
+            if (quantity != null) body.put("p_quantity", quantity)
+            if (expense != null) body.put("p_expense", expense)
+            postRpc("approve_assistant_daily", body, session.accessToken).code in 200..299
+        }.getOrDefault(false)
+    }
+
     suspend fun myAssistantLink(): String = withContext(Dispatchers.IO) {
         val session = savedSession() ?: return@withContext "[]"
         runCatching { postRpc("my_assistant_link", JSONObject(), session.accessToken).body }.getOrDefault("[]")
