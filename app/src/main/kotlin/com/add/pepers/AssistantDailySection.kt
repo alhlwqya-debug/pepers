@@ -59,7 +59,7 @@ internal fun AssistantDailySection(
                     BasicTextField(value = withdrawal, onValueChange = { withdrawal = it.filter(Char::isDigit) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), textStyle = TextStyle(fontSize = 9.sp, color = Red), modifier = Modifier.weight(1f).border(1.dp, AppBorder, RoundedCornerShape(7.dp)).padding(6.dp), decorationBox = { inner -> if (withdrawal.isBlank()) Text("السحبية / المصروف", fontSize = 8.sp, color = AppMuted); inner() })
                     BasicTextField(value = note, onValueChange = { note = it }, singleLine = true, textStyle = TextStyle(fontSize = 9.sp, color = AppText), modifier = Modifier.weight(1f).border(1.dp, AppBorder, RoundedCornerShape(7.dp)).padding(6.dp), decorationBox = { inner -> if (note.isBlank()) Text("ملاحظة", fontSize = 8.sp, color = AppMuted); inner() })
                     Button(onClick = {
-                        database.setAssistantDailyEntry(assistant.id, day.id, status, withdrawal.toIntOrNull() ?: 0, note)
+                        database.setAssistantDailyEntry(assistant.id, day.id, status, withdrawal.toIntOrNull() ?: 0, note, piecesCount)
                         refresh++
                         onSaved()
                     }, colors = ButtonDefaults.buttonColors(containerColor = Green), contentPadding = PaddingValues(horizontal = 8.dp), modifier = Modifier.height(32.dp)) { Text("حفظ", fontSize = 8.sp) }
