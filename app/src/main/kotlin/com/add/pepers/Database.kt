@@ -86,6 +86,9 @@ data class AssistantDailyRecord(
     val status: AssistantDailyStatus,
     val expense: Int,
     val expenseNote: String,
+    val reportedQuantity: Int = 0,
+    val enteredBy: String = "TAILOR",
+    val approvalStatus: String = "APPROVED",
     val notes: String
 )
 
@@ -465,6 +468,9 @@ SQLiteOpenHelper(
         addColumnIfMissing(db, "assistants", "phone", "TEXT NOT NULL DEFAULT ''")
         addColumnIfMissing(db, "assistants", "link_code", "TEXT NOT NULL DEFAULT ''")
         addColumnIfMissing(db, "assistants", "default_rate", "INTEGER NOT NULL DEFAULT 0")
+        addColumnIfMissing(db, "assistant_daily_records", "reported_quantity", "INTEGER NOT NULL DEFAULT 0")
+        addColumnIfMissing(db, "assistant_daily_records", "entered_by", "TEXT NOT NULL DEFAULT 'TAILOR'")
+        addColumnIfMissing(db, "assistant_daily_records", "approval_status", "TEXT NOT NULL DEFAULT 'APPROVED'")
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_assistants_link_code ON assistants(link_code) WHERE link_code <> ''")
     }
 
@@ -1834,7 +1840,9 @@ SQLiteOpenHelper(
         dayId: Long,
         status: AssistantDailyStatus,
         withdrawal: Int,
-        note: String
+        note: String,
+        enteredBy: String = "TAILOR",
+        approvalStatus: String = "APPROVED"
     ): Long {
         val day = readableDatabase.query(
             "days", arrayOf("date_value"), "id = ?", arrayOf(dayId.toString()), null, null, null, "1"
@@ -1846,7 +1854,14 @@ SQLiteOpenHelper(
             status = status,
             expense = withdrawal.coerceAtLeast(0),
             expenseNote = note,
-            notes = note
+            notes = note,
+            reportedQuantity = if (status == AssistantDailyStatus.WORKED) {
+                val raw = readableDatabase.query("days", arrayOf("quantities_json"), "id = ?", arrayOf(dayId.toString()), null, null, null, "1")
+                    .use { cur -> if (cur.moveToFirst()) cur.getString(0).orEmpty() else "" }
+                runCatching { org.json.JSONObject(raw).let { obj -> obj.keys().asSequence().sumOf { k -> obj.optInt(k, 0) } } }.getOrDefault(0)
+            } else 0,
+            enteredBy = enteredBy,
+            approvalStatus = approvalStatus
         )
         writableDatabase.delete(
             "assistant_withdrawals",
