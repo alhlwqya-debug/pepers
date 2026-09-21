@@ -1837,7 +1837,7 @@ SQLiteOpenHelper(
 
     fun calculateAssistantDayEarned(assistant: AssistantRecord, bundle: MonthBundle, day: DayRecord): Int {
         if (day.date < assistant.startDate || (assistant.endDate != null && day.date > assistant.endDate!!)) return 0
-        if (getAssistantDailyRecord(assistant.id, day.id)?.status == AssistantDailyStatus.ABSENT) return 0
+        if (getAssistantDailyRecord(assistant.id, day.id)?.status in setOf(AssistantDailyStatus.ABSENT, AssistantDailyStatus.NO_WORK)) return 0
         var total = 0
         val shopMode = getShops().firstOrNull { it.id == bundle.month.shopId }?.registrationMode
         if (shopMode == RegistrationMode.INDIVIDUAL) {
@@ -1889,11 +1889,15 @@ SQLiteOpenHelper(
 
     fun calculateTailorAssistantShares(shopId: Long, bundles: List<MonthBundle>): Int =
         getAssistants(shopId).sumOf { assistant ->
-            bundles.sumOf { calculateAssistantEarned(assistant, it) }
+            bundles
+                .asSequence()
+                .filter { it.month.shopId == shopId }
+                .sumOf { calculateAssistantEarned(assistant, it) }
         }
 
     fun calculateTailorNetAfterAssistants(shopId: Long, bundles: List<MonthBundle>): Int {
-        val gross = bundles.sumOf { bundle ->
+        val shopBundles = bundles.filter { it.month.shopId == shopId }
+        val gross = shopBundles.sumOf { bundle ->
             val mode = getShops().firstOrNull { it.id == bundle.month.shopId }?.registrationMode
             if (mode == RegistrationMode.INDIVIDUAL) {
                 getDays(bundle.month.id).sumOf { day ->
@@ -1903,7 +1907,7 @@ SQLiteOpenHelper(
                 calculateMonthEarned(bundle)
             }
         }
-        val tailorExpenses = bundles.sumOf { calculateMonthExpenses(it) }
+        val tailorExpenses = shopBundles.sumOf { calculateMonthExpenses(it) }
         return gross - calculateTailorAssistantShares(shopId, bundles) - tailorExpenses
     }
 
