@@ -626,13 +626,15 @@ private fun AssistantAccountScreen(repository: SupabaseAuthRepository) {
 @Composable
 private fun TailorWorkspace(repository: SupabaseAuthRepository) {
     var requests by remember { mutableStateOf(org.json.JSONArray()) }
+    var dailyRequests by remember { mutableStateOf(org.json.JSONArray()) }
     var show by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         while (true) {
             val raw = repository.pendingAssistantLinks()
             requests = runCatching { org.json.JSONArray(raw) }.getOrDefault(org.json.JSONArray())
-            show = requests.length() > 0
+            dailyRequests = runCatching { org.json.JSONArray(repository.pendingAssistantDaily()) }.getOrDefault(org.json.JSONArray())
+            show = requests.length() > 0 || dailyRequests.length() > 0
             kotlinx.coroutines.delay(10_000)
         }
     }
@@ -670,6 +672,29 @@ private fun TailorWorkspace(repository: SupabaseAuthRepository) {
                         }
                     }
                 },
+                        for (i in 0 until dailyRequests.length()) {
+                            val item = dailyRequests.getJSONObject(i)
+                            Text("سجل عمل من ${item.optString("name")}", fontWeight = FontWeight.Bold)
+                            Text("التاريخ: ${item.optString("date")} • القطع: ${item.optInt("quantity")} • المصروف: ${item.optInt("expense")}")
+                            if (item.optString("note").isNotBlank()) Text("ملاحظة: ${item.optString("note")}", fontSize = 10.sp)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = {
+                                    scope.launch {
+                                        if (repository.approveAssistantDaily(item.optString("id"), true)) {
+                                            dailyRequests = org.json.JSONArray(repository.pendingAssistantDaily())
+                                            show = requests.length() > 0 || dailyRequests.length() > 0
+                                        }
+                                    }
+                                }, modifier = Modifier.weight(1f)) { Text("تأكيد") }
+                                OutlinedButton(onClick = {
+                                    scope.launch {
+                                        repository.approveAssistantDaily(item.optString("id"), false)
+                                        dailyRequests = org.json.JSONArray(repository.pendingAssistantDaily())
+                                        show = requests.length() > 0 || dailyRequests.length() > 0
+                                    }
+                                }, modifier = Modifier.weight(1f)) { Text("رفض") }
+                            }
+                        }
                 confirmButton = { TextButton(onClick = { show = false }) { Text("لاحقًا") } }
             )
         }
