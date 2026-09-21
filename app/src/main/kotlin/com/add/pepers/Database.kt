@@ -1820,7 +1820,30 @@ SQLiteOpenHelper(
     }
 
     fun getAssistant(assistantId: Long): AssistantRecord? {
-        return getAssistants(shopId = null, includeInactive = true).firstOrNull { it.id == assistantId }
+        readableDatabase.query(
+            "assistants",
+            null,
+            "id = ?",
+            arrayOf(assistantId.toString()),
+            null,
+            null,
+            null,
+            "1"
+        ).use { c ->
+            return if (c.moveToFirst()) {
+                AssistantRecord(
+                    id = c.getLong(c.getColumnIndexOrThrow("id")),
+                    shopId = c.getLong(c.getColumnIndexOrThrow("shop_id")),
+                    workerId = c.getLong(c.getColumnIndexOrThrow("worker_id")).takeIf { !c.isNull(c.getColumnIndexOrThrow("worker_id")) },
+                    name = c.getString(c.getColumnIndexOrThrow("name")),
+                    task = c.getString(c.getColumnIndexOrThrow("task")),
+                    startDate = c.getString(c.getColumnIndexOrThrow("start_date")),
+                    endDate = c.getString(c.getColumnIndexOrThrow("end_date")).takeIf { !c.isNull(c.getColumnIndexOrThrow("end_date")) },
+                    active = c.getInt(c.getColumnIndexOrThrow("active")) != 0,
+                    notes = c.getString(c.getColumnIndexOrThrow("notes"))
+                )
+            } else null
+        }
     }
 
     fun getAssistantWithdrawals(assistantId: Long): List<AssistantWithdrawalRecord> {
