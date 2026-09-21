@@ -95,7 +95,11 @@ class MainActivity : FragmentActivity() {
                                 onUnlocked = { appLockRequested.value = false },
                                 onUseDeviceLock = { authenticateWithDeviceLock() }
                             )
-                            showMainApp -> WorkLogSheet()
+                            showMainApp -> {
+                                val currentSession = authRepository.savedSession()
+                                if (currentSession?.role == "ASSISTANT") AssistantAccountScreen(repository = authRepository)
+                                else WorkLogSheet()
+                            }
                             else -> PasswordAuthApp(
                                 repository = authRepository,
                                 googleResult = googleResult.value,
@@ -215,6 +219,7 @@ private fun PasswordAuthApp(
     onEnterApp: suspend () -> Unit
 ) {
     var createAccount by rememberSaveable { mutableStateOf(false) }
+    var accountRole by rememberSaveable { mutableStateOf("TAILOR") }
     var name by rememberSaveable { mutableStateOf("") }
     var phone by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
@@ -369,6 +374,16 @@ private fun PasswordAuthApp(
             Spacer(Modifier.height(18.dp))
 
             if (createAccount) {
+                Text("نوع الحساب", fontWeight = FontWeight.SemiBold, color = AuthPrimaryDark, modifier = Modifier.align(Alignment.Start))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (accountRole == "TAILOR") Button(onClick = { accountRole = "TAILOR" }, modifier = Modifier.weight(1f)) { Text("✂️ خياط") }
+                    else OutlinedButton(onClick = { accountRole = "TAILOR" }, modifier = Modifier.weight(1f)) { Text("✂️ خياط") }
+                    if (accountRole == "ASSISTANT") Button(onClick = { accountRole = "ASSISTANT" }, modifier = Modifier.weight(1f)) { Text("👥 مساعد خياط") }
+                    else OutlinedButton(onClick = { accountRole = "ASSISTANT" }, modifier = Modifier.weight(1f)) { Text("👥 مساعد خياط") }
+                }
+                Spacer(Modifier.height(10.dp))
+                if (accountRole == "ASSISTANT") Text("بعد إنشاء الحساب ستدخل معرف الربط الذي أرسله لك الخياط.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it; error = null },
@@ -467,7 +482,7 @@ private fun PasswordAuthApp(
                     loading = true
                     scope.launch {
                         val result = if (createAccount) {
-                            repository.signUpWithPassword(name, phone, email, password)
+                            repository.signUpWithPassword(name, phone, email, password, accountRole)
                         } else {
                             repository.signInWithPassword(email, password)
                         }
@@ -549,3 +564,59 @@ private fun authFieldColors() = androidx.compose.material3.OutlinedTextFieldDefa
     unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     cursorColor = AuthPrimary
 )
+
+@Composable
+private fun AssistantAccountScreen(repository: SupabaseAuthRepository) {
+    val scope = rememberCoroutineScope()
+    var code by rememberSaveable { mutableStateOf("") }
+    var linkedJson by rememberSaveable { mutableStateOf("[]") }
+    var pending by rememberSaveable { mutableStateOf(false) }
+    var message by rememberSaveable { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { linkedJson = repository.myAssistantLink() }
+    val linked = remember(linkedJson) {
+        runCatching {
+            val arr = org.json.JSONArray(linkedJson)
+            if (arr.length() == 0) null else arr.getJSONObject(0)
+        }.getOrNull()
+    }
+    if (linked == null) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.height(35.dp))
+            Text("👥 حساب مساعد الخياط", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = AuthPrimaryDark)
+            Spacer(Modifier.height(8.dp))
+            Text("اربط حسابك بحساب الخياط باستخدام المعرف الذي أرسله لك.")
+            Spacer(Modifier.height(22.dp))
+            OutlinedTextField(code, { code = it.uppercase(Locale.ROOT); message = null }, label = { Text("معرف الربط") }, placeholder = { Text("AST-XXXXXXXXXX") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+            Spacer(Modifier.height(12.dp))
+            Button(enabled = code.isNotBlank() && !loading && !pending, onClick = {
+                loading = true
+                scope.launch {
+                    when (val result = repository.requestAssistantLink(code)) {
+                        is AuthResult.SignedIn -> { pending = true; message = "تم إرسال طلب الربط. بانتظار موافقة الخياط." }
+                        is AuthResult.Failure -> message = result.message
+                    }
+                    loading = false
+                }
+            }, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text(if (loading) "جارٍ الإرسال…" else "طلب الربط") }
+            if (pending) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = { scope.launch {
+                    val current = repository.myAssistantLink()
+                    if (current != "[]") { linkedJson = current; pending = false; message = "تم قبول الربط." }
+                    else message = "لم تتم الموافقة بعد."
+                } }, modifier = Modifier.fillMaxWidth()) { Text("تحقق من موافقة الخياط") }
+            }
+            message?.let { Spacer(Modifier.height(12.dp)); Text(it, color = AuthPrimaryDark) }
+        }
+    } else {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp)) {
+            Text("مرحبًا ${linked.optString("name")}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = AuthPrimaryDark)
+            Spacer(Modifier.height(6.dp))
+            Text("المهمة: ${linked.optString("task").ifBlank { "غير محددة" }}")
+            Text("السعر: ${linked.optInt("rate")} ريال/قطعة")
+            Spacer(Modifier.height(18.dp))
+            Text("تم ربط حسابك بالخياط. سيستخدم الطرفان سجل اليوم نفسه لمنع تكرار العمل أو المصروف.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
