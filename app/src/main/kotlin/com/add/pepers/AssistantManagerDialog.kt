@@ -66,8 +66,8 @@ internal fun AssistantManagerDialog(shop: ShopRecord, onDismiss: () -> Unit) {
                                                 shop = shop,
                                                 assistant = assistant,
                                                 userName = prefs.getString("user_name", "").orEmpty(),
-                                                phone = prefs.getString("user_phone", "").orEmpty(),
-                                                email = prefs.getString("user_email", "").orEmpty()
+                                                userPhone = prefs.getString("user_phone", "").orEmpty(),
+                                                userEmail = prefs.getString("user_email", "").orEmpty()
                                             )
                                         },
                                         modifier = Modifier.weight(1f)
