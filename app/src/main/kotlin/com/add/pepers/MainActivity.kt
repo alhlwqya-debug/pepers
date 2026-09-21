@@ -572,8 +572,12 @@ private fun AssistantAccountScreen(repository: SupabaseAuthRepository) {
     var linkedJson by rememberSaveable { mutableStateOf("[]") }
     var pending by rememberSaveable { mutableStateOf(false) }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
+    var dailyJson by rememberSaveable { mutableStateOf("[]") }
     var loading by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { linkedJson = repository.myAssistantLink() }
+    LaunchedEffect(Unit) {
+        linkedJson = repository.myAssistantLink()
+        dailyJson = repository.myAssistantDaily()
+    }
     val linked = remember(linkedJson) {
         runCatching {
             val arr = org.json.JSONArray(linkedJson)
@@ -619,6 +623,14 @@ private fun AssistantAccountScreen(repository: SupabaseAuthRepository) {
             Text("تم ربط حسابك بالخياط. سيستخدم الطرفان سجل اليوم نفسه لمنع تكرار العمل أو المصروف.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(18.dp))
             AssistantDailyWorkForm(repository)
+            Spacer(Modifier.height(20.dp))
+            Text("السجلات المعتمدة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = AuthPrimaryDark)
+            val daily = runCatching { org.json.JSONArray(dailyJson) }.getOrDefault(org.json.JSONArray())
+            if (daily.length() == 0) Text("لا توجد سجلات معتمدة بعد.", fontSize = 11.sp)
+            else for (i in 0 until minOf(daily.length(), 20)) {
+                val d = daily.getJSONObject(i)
+                Text("• ${d.optString("date")} — ${d.optInt("quantity")} قطع — مصروف ${d.optInt("expense")}", fontSize = 11.sp)
+            }
         }
     }
 }
