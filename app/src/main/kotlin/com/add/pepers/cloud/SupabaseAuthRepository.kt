@@ -250,6 +250,17 @@ class SupabaseAuthRepository(private val context: Context) {
         runCatching { postRpc("approve_assistant_link", JSONObject().put("p_request_id", requestId).put("p_approve", approve), session.accessToken).code in 200..299 }.getOrDefault(false)
     }
 
+    suspend fun saveAssistantDailyWork(date: String, quantity: Int, expense: Int, note: String): AuthResult = withContext(Dispatchers.IO) {
+        val session = savedSession() ?: return@withContext AuthResult.Failure("سجّل الدخول أولاً.")
+        runCatching {
+            val response = postRpc("upsert_my_assistant_daily", JSONObject()
+                .put("p_date", date).put("p_quantity", quantity.coerceAtLeast(0))
+                .put("p_expense", expense.coerceAtLeast(0)).put("p_note", note), session.accessToken)
+            if (response.code in 200..299) AuthResult.SignedIn(session)
+            else AuthResult.Failure("تعذر حفظ سجل العمل المشترك.")
+        }.getOrElse { AuthResult.Failure(context.getString(R.string.error_network)) }
+    }
+
     suspend fun myAssistantLink(): String = withContext(Dispatchers.IO) {
         val session = savedSession() ?: return@withContext "[]"
         runCatching { postRpc("my_assistant_link", JSONObject(), session.accessToken).body }.getOrDefault("[]")
