@@ -1815,7 +1815,10 @@ SQLiteOpenHelper(
         status: AssistantDailyStatus,
         expense: Int,
         expenseNote: String,
-        notes: String
+        notes: String,
+        reportedQuantity: Int = 0,
+        enteredBy: String = "TAILOR",
+        approvalStatus: String = "APPROVED"
     ): Long {
         val values = ContentValues().apply {
             put("assistant_id", assistantId)
@@ -1824,52 +1827,11 @@ SQLiteOpenHelper(
             put("expense", expense.coerceAtLeast(0))
             put("expense_note", expenseNote.trim())
             put("notes", notes.trim())
+            put("reported_quantity", reportedQuantity.coerceAtLeast(0))
+            put("entered_by", enteredBy)
+            put("approval_status", approvalStatus)
         }
-        return writableDatabase.insertWithOnConflict(
-            "assistant_daily_records", null, values, SQLiteDatabase.CONFLICT_REPLACE
-        )
-    }
-
-    /**
-     * Saves the one shared daily assistant record. The amount is stored as the
-     * daily withdrawal and replaces only this assistant's daily withdrawal,
-     * preventing duplicate financial entries when both sides save the same day.
-     */
-    fun setAssistantDailyEntry(
-        assistantId: Long,
-        dayId: Long,
-        status: AssistantDailyStatus,
-        withdrawal: Int,
-        note: String,
-        enteredBy: String = "TAILOR",
-        approvalStatus: String = "APPROVED"
-    ): Long {
-        val day = readableDatabase.query(
-            "days", arrayOf("date_value"), "id = ?", arrayOf(dayId.toString()), null, null, null, "1"
-        ).use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: return -1L
-
-        val id = setAssistantDailyRecord(
-            assistantId = assistantId,
-            dayId = dayId,
-            status = status,
-            expense = withdrawal.coerceAtLeast(0),
-            expenseNote = note,
-            notes = note,
-            reportedQuantity = if (status == AssistantDailyStatus.WORKED) {
-                val raw = readableDatabase.query("days", arrayOf("quantities_json"), "id = ?", arrayOf(dayId.toString()), null, null, null, "1")
-                    .use { cur -> if (cur.moveToFirst()) cur.getString(0).orEmpty() else "" }
-                runCatching { org.json.JSONObject(raw).let { obj -> obj.keys().asSequence().sumOf { k -> obj.optInt(k, 0) } } }.getOrDefault(0)
-            } else 0,
-            enteredBy = enteredBy,
-            approvalStatus = approvalStatus
-        )
-        writableDatabase.delete(
-            "assistant_withdrawals",
-            "assistant_id = ? AND date_value = ?",
-            arrayOf(assistantId.toString(), day)
-        )
-        if (withdrawal > 0) addAssistantWithdrawal(assistantId, day, withdrawal, note)
-        return id
+        return writableDatabase.insertWithOnConflict("assistant_daily_records", null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
     fun getAssistantDailyRecord(assistantId: Long, dayId: Long): AssistantDailyRecord? {
@@ -1882,7 +1844,10 @@ SQLiteOpenHelper(
                     status = runCatching { AssistantDailyStatus.valueOf(c.getString(c.getColumnIndexOrThrow("status"))) }.getOrDefault(AssistantDailyStatus.WORKED),
                     expense = c.getInt(c.getColumnIndexOrThrow("expense")),
                     expenseNote = c.getString(c.getColumnIndexOrThrow("expense_note")),
-                    notes = c.getString(c.getColumnIndexOrThrow("notes"))
+                    notes = c.getString(c.getColumnIndexOrThrow("notes")),
+                    reportedQuantity = c.getInt(c.getColumnIndexOrThrow("reported_quantity")),
+                    enteredBy = c.getString(c.getColumnIndexOrThrow("entered_by")),
+                    approvalStatus = c.getString(c.getColumnIndexOrThrow("approval_status"))
                 )
             }
         }
