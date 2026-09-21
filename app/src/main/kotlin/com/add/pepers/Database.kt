@@ -1867,16 +1867,18 @@ SQLiteOpenHelper(
         return total
     }
 
-    fun calculateAssistantExpense(assistantId: Long, bundle: MonthBundle): Int =
-        bundle.days.sumOf { day ->
-            if (day.date < getAssistantStartDate(assistantId)) 0
-            else getAssistantDailyRecord(assistantId, day.id)?.expense ?: 0
+    fun calculateAssistantExpense(assistantId: Long, bundle: MonthBundle): Int {
+        val assistant = getAssistant(assistantId) ?: return 0
+        return bundle.days.sumOf { day ->
+            if (day.date < assistant.startDate ||
+                (assistant.endDate != null && day.date > assistant.endDate!!)
+            ) {
+                0
+            } else {
+                getAssistantDailyRecord(assistantId, day.id)?.expense ?: 0
+            }
         }
-
-    private fun getAssistantStartDate(assistantId: Long): String =
-        readableDatabase.query("assistants", arrayOf("start_date"), "id = ?", arrayOf(assistantId.toString()), null, null, null, "1").use { c ->
-            if (c.moveToFirst()) c.getString(0) else "9999/99/99"
-        }
+    }
 
     fun calculateAssistantBalance(assistant: AssistantRecord, bundles: List<MonthBundle>): Int {
         val earned = bundles.sumOf { calculateAssistantEarned(assistant, it) }
