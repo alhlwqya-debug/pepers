@@ -134,7 +134,8 @@ internal fun DrawerContent(
                 }
             }
             Spacer(Modifier.height(7.dp)); DrawerActionButton(text = "إضافة محل جديد", icon = "＋", tint = Purple, onClick = onAddShop, outlined = false)
-            Spacer(Modifier.height(7.dp)); DrawerActionButton(text = "إعدادات المحل", icon = "⚙", tint = AppText, onClick = { showShopSettings = true }, outlined = true)\n            Spacer(Modifier.height(7.dp)); DrawerActionButton(text = "مساعدو الخياط", icon = "👥", tint = AppText, onClick = { showAssistantManager = true }, outlined = true)
+            Spacer(Modifier.height(7.dp)); DrawerActionButton(text = "إعدادات المحل", icon = "⚙", tint = AppText, onClick = { showShopSettings = true }, outlined = true)
+            Spacer(Modifier.height(7.dp)); DrawerActionButton(text = "مساعدو الخياط", icon = "👥", tint = AppText, onClick = { showAssistantManager = true }, outlined = true)
             Spacer(Modifier.height(13.dp)); DrawerSectionTitle("الوصول السريع"); Spacer(Modifier.height(6.dp))
             Spacer(Modifier.height(6.dp)); DrawerActionButton(text = "إعدادات التطبيق", icon = "⚙", tint = AppText, onClick = { showAppSettings = true }, outlined = true)
             Spacer(Modifier.height(6.dp)); DrawerActionButton(text = "الإحصائيات", icon = "▥", tint = AppText, onClick = onStatistics, outlined = true)
