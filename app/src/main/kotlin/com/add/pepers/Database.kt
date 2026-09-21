@@ -86,10 +86,10 @@ data class AssistantDailyRecord(
     val status: AssistantDailyStatus,
     val expense: Int,
     val expenseNote: String,
+    val notes: String,
     val reportedQuantity: Int = 0,
     val enteredBy: String = "TAILOR",
-    val approvalStatus: String = "APPROVED",
-    val notes: String
+    val approvalStatus: String = "APPROVED"
 )
 
 data class AssistantWithdrawalRecord(
