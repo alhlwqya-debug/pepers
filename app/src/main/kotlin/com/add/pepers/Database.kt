@@ -1820,6 +1820,39 @@ SQLiteOpenHelper(
         )
     }
 
+    /**
+     * Saves the one shared daily assistant record. The amount is stored as the
+     * daily withdrawal and replaces only this assistant's daily withdrawal,
+     * preventing duplicate financial entries when both sides save the same day.
+     */
+    fun setAssistantDailyEntry(
+        assistantId: Long,
+        dayId: Long,
+        status: AssistantDailyStatus,
+        withdrawal: Int,
+        note: String
+    ): Long {
+        val day = readableDatabase.query(
+            "days", arrayOf("date_value"), "id = ?", arrayOf(dayId.toString()), null, null, null, "1"
+        ).use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: return -1L
+
+        val id = setAssistantDailyRecord(
+            assistantId = assistantId,
+            dayId = dayId,
+            status = status,
+            expense = withdrawal.coerceAtLeast(0),
+            expenseNote = note,
+            notes = note
+        )
+        writableDatabase.delete(
+            "assistant_withdrawals",
+            "assistant_id = ? AND date_value = ?",
+            arrayOf(assistantId.toString(), day)
+        )
+        if (withdrawal > 0) addAssistantWithdrawal(assistantId, day, withdrawal, note)
+        return id
+    }
+
     fun getAssistantDailyRecord(assistantId: Long, dayId: Long): AssistantDailyRecord? {
         readableDatabase.query("assistant_daily_records", null, "assistant_id = ? AND day_id = ?", arrayOf(assistantId.toString(), dayId.toString()), null, null, null, "1").use { c ->
             if (c.moveToFirst()) {
