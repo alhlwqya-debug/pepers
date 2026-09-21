@@ -80,8 +80,8 @@ internal fun shareAssistantLedgerPdf(
                 context = context,
                 webView = webView,
                 jobName = "pepers_assistant_" + assistant.name,
-                userPhone = userPhone,
-                userEmail = userEmail
+                phone = userPhone,
+                email = userEmail
             ) {
                 parent.post { runCatching { parent.removeView(webView) } }
             }
