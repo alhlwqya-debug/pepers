@@ -15,6 +15,11 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import java.util.UUID
 
 /** Public client configuration. Never put a service_role key in the app. */
@@ -295,27 +300,50 @@ private object SupabaseHttp {
 
 private object LocalSyncSnapshot {
     fun read(context: Context, userId: String, deviceId: String): Map<String, JSONArray> {
-        val db = Database(context).readableDatabase
+        val db = Database(context).writableDatabase
+        ensureSyncState(db)
+
         val shopKeys = mutableMapOf<Long, String>()
         val workerKeys = mutableMapOf<Long, String>()
         val monthKeys = mutableMapOf<Long, String>()
         val pieceKeys = mutableMapOf<Long, String>()
         val dayKeys = mutableMapOf<Long, String>()
         val entryKeys = mutableMapOf<Long, String>()
-        fun key(table: String, id: Long) = "$deviceId:$table:$id"
-        fun base(table: String, id: Long): JSONObject = JSONObject().apply {
-            put("user_id", userId)
-            put("legacy_id", id)
-            put("record_key", key(table, id))
-            put("source_device_id", deviceId)
-        }
-        fun rows(sql: String, fill: (JSONObject, Cursor) -> Unit): JSONArray {
-            val array = JSONArray()
-            db.rawQuery(sql, null).use { cursor ->
-                while (cursor.moveToNext()) array.put(JSONObject().also { fill(it, cursor) })
+
+        fun syncKey(table: String, id: Long): String {
+            db.rawQuery(
+                "SELECT record_key FROM sync_records WHERE table_name = ? AND local_id = ? LIMIT 1",
+                arrayOf(table, id.toString())
+            ).use { cursor ->
+                if (cursor.moveToFirst()) return cursor.getString(0)
             }
-            return array
+            val created = "$deviceId:$table:$id"
+            db.insertWithOnConflict(
+                "sync_records",
+                null,
+                ContentValues().apply {
+                    put("record_key", created)
+                    put("table_name", table)
+                    put("local_id", id)
+                },
+                SQLiteDatabase.CONFLICT_IGNORE
+            )
+            db.rawQuery(
+                "SELECT record_key FROM sync_records WHERE table_name = ? AND local_id = ? LIMIT 1",
+                arrayOf(table, id.toString())
+            ).use { cursor ->
+                if (cursor.moveToFirst()) return cursor.getString(0)
+            }
+            return created
         }
+
+        fun row(table: String, id: Long, build: JSONObject.() -> Unit): JSONObject =
+            JSONObject().apply {
+                put("record_key", syncKey(table, id))
+                put("source_device_id", deviceId)
+                build()
+            }.let { stamp(db, it, table, id) }
+
         val profiles = JSONArray().put(JSONObject().apply {
             put("user_id", userId)
             put("display_name", context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE).getString("user_name", "").orEmpty())
@@ -326,36 +354,235 @@ private object LocalSyncSnapshot {
             if (localImagePath.isNotBlank() && File(localImagePath).exists()) {
                 put("avatar_path", SupabaseStorage.profileObjectPath(userId))
             }
-        })
-        val shops = rows("SELECT id,name,default_worker_id,registration_mode,registration_number FROM shops") { o, c ->
-            val id = c.getLong(0); shopKeys[id] = key("shops", id); o.put("user_id", userId).put("legacy_id", id).put("record_key", key("shops", id)).put("source_device_id", deviceId).put("name", c.getString(1)).put("default_worker_legacy_id", if (c.isNull(2)) JSONObject.NULL else c.getLong(2)).put("registration_mode", c.getString(3)).put("registration_number", c.getString(4))
+        }.let { stamp(db, it, "user_profiles", 0L, "profile:$userId") })
+
+        val shops = JSONArray()
+        db.rawQuery("SELECT id,name,default_worker_id,registration_mode,registration_number FROM shops", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0)
+                val shopId = id
+                shopKeys[id] = syncKey("shops", id)
+                shops.put(row("shops", shopId) {
+                    put("user_id", userId)
+                    put("legacy_id", id)
+                    put("name", c.getString(1))
+                    put("default_worker_legacy_id", if (c.isNull(2)) JSONObject.NULL else c.getLong(2))
+                    put("registration_mode", c.getString(3))
+                    put("registration_number", c.getString(4))
+                })
+            }
         }
-        val workers = rows("SELECT id,shop_id,name FROM workers") { o, c ->
-            val id = c.getLong(0); o.put("user_id", userId).put("legacy_id", id).put("record_key", key("workers", id)).put("source_device_id", deviceId).put("shop_legacy_id", c.getLong(1)).put("shop_record_key", shopKeys[c.getLong(1)] ?: key("shops", c.getLong(1))).put("name", c.getString(2)); workerKeys[id] = key("workers", id)
+
+        val workers = JSONArray()
+        db.rawQuery("SELECT id,shop_id,name FROM workers", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0)
+                val shopId = c.getLong(1)
+                workerKeys[id] = syncKey("workers", id)
+                workers.put(row("workers", id) {
+                    put("user_id", userId)
+                    put("legacy_id", id)
+                    put("shop_legacy_id", shopId)
+                    put("shop_record_key", shopKeys[shopId] ?: syncKey("shops", shopId))
+                    put("name", c.getString(2))
+                })
+            }
         }
-        val months = rows("SELECT id,shop_id,worker_id,year,month_number,name,worker_name,start_date,deduct_expense FROM months") { o, c ->
-            val id = c.getLong(0); o.put("user_id", userId).put("legacy_id", id).put("record_key", key("months", id)).put("source_device_id", deviceId).put("shop_legacy_id", c.getLong(1)).put("shop_record_key", shopKeys[c.getLong(1)] ?: key("shops", c.getLong(1))).put("worker_legacy_id", if (c.isNull(2)) JSONObject.NULL else c.getLong(2)).put("worker_record_key", if (c.isNull(2)) JSONObject.NULL else workerKeys[c.getLong(2)]).put("year", c.getInt(3)).put("month_number", c.getInt(4)).put("name", c.getString(5)).put("worker_name", c.getString(6)).put("start_date", c.getString(7)).put("deduct_expense", c.getInt(8) != 0); monthKeys[id] = key("months", id)
+
+        val months = JSONArray()
+        db.rawQuery("SELECT id,shop_id,worker_id,year,month_number,name,worker_name,start_date,deduct_expense FROM months", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0)
+                val shopId = c.getLong(1)
+                val workerId = if (c.isNull(2)) null else c.getLong(2)
+                monthKeys[id] = syncKey("months", id)
+                months.put(row("months", id) {
+                    put("user_id", userId)
+                    put("legacy_id", id)
+                    put("shop_legacy_id", shopId)
+                    put("shop_record_key", shopKeys[shopId] ?: syncKey("shops", shopId))
+                    put("worker_legacy_id", workerId ?: JSONObject.NULL)
+                    put("worker_record_key", workerId?.let { workerKeys[it] ?: syncKey("workers", it) } ?: JSONObject.NULL)
+                    put("year", c.getInt(3))
+                    put("month_number", c.getInt(4))
+                    put("name", c.getString(5))
+                    put("worker_name", c.getString(6))
+                    put("start_date", c.getString(7))
+                    put("deduct_expense", c.getInt(8) != 0)
+                })
+            }
         }
-        val pieces = rows("SELECT id,shop_id,name,price FROM pieces") { o, c ->
-            val id = c.getLong(0); o.put("user_id", userId).put("legacy_id", id).put("record_key", key("pieces", id)).put("source_device_id", deviceId).put("shop_legacy_id", c.getLong(1)).put("shop_record_key", shopKeys[c.getLong(1)] ?: key("shops", c.getLong(1))).put("name", c.getString(2)).put("price", c.getInt(3)); pieceKeys[id] = key("pieces", id)
+
+        val pieces = JSONArray()
+        db.rawQuery("SELECT id,shop_id,name,price FROM pieces", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0)
+                val shopId = c.getLong(1)
+                pieceKeys[id] = syncKey("pieces", id)
+                pieces.put(row("pieces", id) {
+                    put("user_id", userId)
+                    put("legacy_id", id)
+                    put("shop_legacy_id", shopId)
+                    put("shop_record_key", shopKeys[shopId] ?: syncKey("shops", shopId))
+                    put("name", c.getString(2))
+                    put("price", c.getInt(3))
+                })
+            }
         }
-        val days = rows("SELECT id,month_id,date_value,expense,expense_note FROM days") { o, c ->
-            val id = c.getLong(0); o.put("user_id", userId).put("legacy_id", id).put("record_key", key("days", id)).put("source_device_id", deviceId).put("month_legacy_id", c.getLong(1)).put("month_record_key", monthKeys[c.getLong(1)] ?: key("months", c.getLong(1))).put("date_value", c.getString(2)).put("day_name", "").put("expense", c.getInt(3)).put("expense_note", c.getString(4)); dayKeys[id] = key("days", id)
+
+        val days = JSONArray()
+        db.rawQuery("SELECT id,month_id,date_value,expense,expense_note FROM days", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0)
+                val monthId = c.getLong(1)
+                dayKeys[id] = syncKey("days", id)
+                days.put(row("days", id) {
+                    put("user_id", userId)
+                    put("legacy_id", id)
+                    put("month_legacy_id", monthId)
+                    put("month_record_key", monthKeys[monthId] ?: syncKey("months", monthId))
+                    put("date_value", c.getString(2))
+                    put("day_name", "")
+                    put("expense", c.getInt(3))
+                    put("expense_note", c.getString(4))
+                })
+            }
         }
-        val entries = rows("SELECT id,day_id,piece_id,quantity,unit_price FROM entries") { o, c ->
-            val id = c.getLong(0); o.put("user_id", userId).put("legacy_id", id).put("record_key", key("entries", id)).put("source_device_id", deviceId).put("day_legacy_id", c.getLong(1)).put("day_record_key", dayKeys[c.getLong(1)] ?: key("days", c.getLong(1))).put("piece_legacy_id", c.getLong(2)).put("piece_record_key", pieceKeys[c.getLong(2)] ?: key("pieces", c.getLong(2))).put("quantity", c.getInt(3)).put("unit_price", c.getInt(4));
-            entryKeys[id] = key("entries", id)
+
+        val entries = JSONArray()
+        db.rawQuery("SELECT id,day_id,piece_id,quantity,unit_price FROM entries", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0)
+                val dayId = c.getLong(1)
+                val pieceId = c.getLong(2)
+                entryKeys[id] = syncKey("entries", id)
+                entries.put(row("entries", id) {
+                    put("user_id", userId)
+                    put("legacy_id", id)
+                    put("day_legacy_id", dayId)
+                    put("day_record_key", dayKeys[dayId] ?: syncKey("days", dayId))
+                    put("piece_legacy_id", pieceId)
+                    put("piece_record_key", pieceKeys[pieceId] ?: syncKey("pieces", pieceId))
+                    put("quantity", c.getInt(3))
+                    put("unit_price", c.getInt(4))
+                })
+            }
         }
-        val individual = rows("SELECT id,day_id,customer_name,page_number,customer_search,customer_search_dotless FROM individual_entries") { o, c ->
-            val id = c.getLong(0); o.put("user_id", userId).put("legacy_id", id).put("record_key", key("individual_entries", id)).put("source_device_id", deviceId).put("day_legacy_id", c.getLong(1)).put("day_record_key", dayKeys[c.getLong(1)] ?: key("days", c.getLong(1))).put("customer_name", c.getString(2)).put("page_number", c.getString(3)).put("customer_search", c.getString(4)).put("customer_search_dotless", c.getString(5))
+
+        val individual = JSONArray()
+        db.rawQuery("SELECT id,day_id,customer_name,page_number,customer_search,customer_search_dotless FROM individual_entries", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0)
+                val dayId = c.getLong(1)
+                individual.put(row("individual_entries", id) {
+                    put("user_id", userId)
+                    put("legacy_id", id)
+                    put("day_legacy_id", dayId)
+                    put("day_record_key", dayKeys[dayId] ?: syncKey("days", dayId))
+                    put("customer_name", c.getString(2))
+                    put("page_number", c.getString(3))
+                    put("customer_search", c.getString(4))
+                    put("customer_search_dotless", c.getString(5))
+                })
+            }
         }
-        val items = rows("SELECT id,entry_id,piece_id,quantity,unit_price FROM individual_entry_items") { o, c ->
-            val id = c.getLong(0); o.put("user_id", userId).put("legacy_id", id).put("record_key", key("individual_entry_items", id)).put("source_device_id", deviceId).put("entry_legacy_id", c.getLong(1)).put("entry_record_key", entryKeys[c.getLong(1)] ?: key("individual_entries", c.getLong(1))).put("piece_legacy_id", c.getLong(2)).put("piece_record_key", pieceKeys[c.getLong(2)] ?: key("pieces", c.getLong(2))).put("quantity", c.getInt(3)).put("unit_price", c.getInt(4))
+
+        val items = JSONArray()
+        db.rawQuery("SELECT id,entry_id,piece_id,quantity,unit_price FROM individual_entry_items", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0)
+                val entryId = c.getLong(1)
+                val pieceId = c.getLong(2)
+                items.put(row("individual_entry_items", id) {
+                    put("user_id", userId)
+                    put("legacy_id", id)
+                    put("entry_legacy_id", entryId)
+                    put("entry_record_key", entryKeys[entryId] ?: syncKey("individual_entries", entryId))
+                    put("piece_legacy_id", pieceId)
+                    put("piece_record_key", pieceKeys[pieceId] ?: syncKey("pieces", pieceId))
+                    put("quantity", c.getInt(3))
+                    put("unit_price", c.getInt(4))
+                })
+            }
         }
+
+        db.close()
         return linkedMapOf(
-            "user_profiles" to profiles, "shops" to shops, "workers" to workers, "months" to months,
-            "pieces" to pieces, "days" to days, "entries" to entries, "individual_entries" to individual,
+            "user_profiles" to profiles,
+            "shops" to shops,
+            "workers" to workers,
+            "months" to months,
+            "pieces" to pieces,
+            "days" to days,
+            "entries" to entries,
+            "individual_entries" to individual,
             "individual_entry_items" to items
         )
     }
+
+    private fun ensureSyncState(db: SQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS sync_records (" +
+                "record_key TEXT PRIMARY KEY, table_name TEXT NOT NULL, local_id INTEGER NOT NULL," +
+                "updated_at INTEGER NOT NULL DEFAULT 0, content_hash TEXT NOT NULL DEFAULT '')"
+        )
+        runCatching { db.execSQL("ALTER TABLE sync_records ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0") }
+        runCatching { db.execSQL("ALTER TABLE sync_records ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''") }
+    }
+
+    private fun stamp(
+        db: SQLiteDatabase,
+        value: JSONObject,
+        table: String,
+        localId: Long,
+        overrideKey: String? = null
+    ): JSONObject {
+        val recordKey = overrideKey ?: value.optString("record_key")
+        value.put("record_key", recordKey)
+        value.remove("updated_at")
+        val hash = sha256(value.toString())
+
+        var timestamp = 0L
+        var previousHash = ""
+        db.rawQuery(
+            "SELECT updated_at,content_hash FROM sync_records WHERE record_key = ?",
+            arrayOf(recordKey)
+        ).use { c ->
+            if (c.moveToFirst()) {
+                timestamp = c.getLong(0)
+                previousHash = c.getString(1).orEmpty()
+            }
+        }
+
+        if (timestamp <= 0L || previousHash != hash) {
+            timestamp = System.currentTimeMillis()
+        }
+
+        db.insertWithOnConflict(
+            "sync_records",
+            null,
+            ContentValues().apply {
+                put("record_key", recordKey)
+                put("table_name", table)
+                put("local_id", localId)
+                put("updated_at", timestamp)
+                put("content_hash", hash)
+            },
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
+
+        value.put("updated_at", isoUtc(timestamp))
+        return value
+    }
+
+    private fun sha256(value: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun isoUtc(millis: Long): String =
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }.format(Date(millis))
 }
