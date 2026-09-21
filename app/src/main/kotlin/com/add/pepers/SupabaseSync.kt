@@ -128,7 +128,8 @@ internal object SupabaseSyncManager {
         val snapshot = LocalSyncSnapshot.read(context, session.userId, SupabaseSessionStore.deviceId(context))
         val order = listOf(
             "user_profiles", "shops", "workers", "months", "pieces", "days",
-            "entries", "individual_entries", "individual_entry_items"
+            "entries", "individual_entries", "individual_entry_items",
+            "assistants", "assistant_piece_rates", "assistant_daily_records", "assistant_withdrawals"
         )
         var uploaded = 0
         for (table in order) {
@@ -153,7 +154,7 @@ internal object SupabaseSyncManager {
 
     private suspend fun downloadRemote(session: SupabaseSession): Map<String, JSONArray> = withContext(Dispatchers.IO) {
         val result = linkedMapOf<String, JSONArray>()
-        listOf("user_profiles", "shops", "workers", "months", "pieces", "days", "entries", "individual_entries", "individual_entry_items").forEach { table ->
+        listOf("user_profiles", "shops", "workers", "months", "pieces", "days", "entries", "individual_entries", "individual_entry_items", "assistants", "assistant_piece_rates", "assistant_daily_records", "assistant_withdrawals").forEach { table ->
             val response = SupabaseHttp.request("GET", "/rest/v1/$table?select=*&user_id=eq.${session.userId}", session = session)
             result[table] = response.optJSONArray("data") ?: JSONArray()
         }
@@ -238,6 +239,44 @@ private object LocalSyncImporter {
             val pieceId = resolve("pieces", text(o, "piece_record_key"), long(o, "piece_legacy_id")) ?: return@forEachObject
             ensure("individual_entry_items", text(o, "record_key"), id, ContentValues().apply { put("entry_id", entryId); put("piece_id", pieceId); put("quantity", o.optInt("quantity")); put("unit_price", o.optInt("unit_price")) })
         }
+        rows("assistants").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val shopId = resolve("shops", text(o, "shop_record_key"), long(o, "shop_legacy_id")) ?: return@forEachObject
+            val workerId = if (o.isNull("worker_record_key")) null else resolve("workers", text(o, "worker_record_key"), long(o, "worker_legacy_id"))
+            ensure("assistants", text(o, "record_key"), id, ContentValues().apply {
+                put("shop_id", shopId); if (workerId != null) put("worker_id", workerId) else putNull("worker_id")
+                put("name", text(o, "name")); put("task", text(o, "task")); put("start_date", text(o, "start_date"))
+                if (o.isNull("end_date")) putNull("end_date") else put("end_date", text(o, "end_date"))
+                put("active", if (o.optBoolean("active", true)) 1 else 0); put("notes", text(o, "notes"))
+            })
+        }
+        rows("assistant_piece_rates").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val assistantId = resolve("assistants", text(o, "assistant_record_key"), long(o, "assistant_legacy_id")) ?: return@forEachObject
+            val pieceId = resolve("pieces", text(o, "piece_record_key"), long(o, "piece_legacy_id")) ?: return@forEachObject
+            ensure("assistant_piece_rates", text(o, "record_key"), id, ContentValues().apply {
+                put("assistant_id", assistantId); put("piece_id", pieceId); put("rate", o.optInt("rate"))
+                put("effective_from", text(o, "effective_from")); if (o.isNull("effective_to")) putNull("effective_to") else put("effective_to", text(o, "effective_to"))
+            })
+        }
+        rows("assistant_daily_records").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val assistantId = resolve("assistants", text(o, "assistant_record_key"), long(o, "assistant_legacy_id")) ?: return@forEachObject
+            val dayId = resolve("days", text(o, "day_record_key"), long(o, "day_legacy_id")) ?: return@forEachObject
+            ensure("assistant_daily_records", text(o, "record_key"), id, ContentValues().apply {
+                put("assistant_id", assistantId); put("day_id", dayId); put("status", text(o, "status"))
+                put("expense", o.optInt("expense")); put("expense_note", text(o, "expense_note")); put("notes", text(o, "notes"))
+            })
+        }
+        rows("assistant_withdrawals").forEachObject { o ->
+            val id = long(o, "legacy_id")
+            val assistantId = resolve("assistants", text(o, "assistant_record_key"), long(o, "assistant_legacy_id")) ?: return@forEachObject
+            ensure("assistant_withdrawals", text(o, "record_key"), id, ContentValues().apply {
+                put("assistant_id", assistantId); put("date_value", text(o, "date_value"))
+                put("amount", o.optInt("amount")); put("note", text(o, "note"))
+            })
+        }
+
         remote["user_profiles"]?.optJSONObject(0)?.let { profile ->
             context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE).edit()
                 .putString("user_name", profile.optString("display_name", ""))
@@ -507,16 +546,61 @@ private object LocalSyncSnapshot {
         }
 
         db.close()
+        val assistants = JSONArray()
+        db.rawQuery("SELECT id,shop_id,worker_id,name,task,start_date,end_date,active,notes FROM assistants", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0); val shopId = c.getLong(1); val workerId = if (c.isNull(2)) null else c.getLong(2)
+                assistants.put(row("assistants", id) {
+                    put("user_id", userId); put("legacy_id", id)
+                    put("shop_legacy_id", shopId); put("shop_record_key", shopKeys[shopId] ?: syncKey("shops", shopId))
+                    put("worker_legacy_id", workerId ?: JSONObject.NULL)
+                    put("worker_record_key", workerId?.let { workerKeys[it] ?: syncKey("workers", it) } ?: JSONObject.NULL)
+                    put("name", c.getString(3)); put("task", c.getString(4)); put("start_date", c.getString(5))
+                    put("end_date", if (c.isNull(6)) JSONObject.NULL else c.getString(6)); put("active", c.getInt(7) != 0); put("notes", c.getString(8))
+                })
+            }
+        }
+        val assistantRates = JSONArray()
+        db.rawQuery("SELECT id,assistant_id,piece_id,rate,effective_from,effective_to FROM assistant_piece_rates", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0); val assistantId = c.getLong(1); val pieceId = c.getLong(2)
+                assistantRates.put(row("assistant_piece_rates", id) {
+                    put("user_id", userId); put("legacy_id", id)
+                    put("assistant_legacy_id", assistantId); put("assistant_record_key", syncKey("assistants", assistantId))
+                    put("piece_legacy_id", pieceId); put("piece_record_key", pieceKeys[pieceId] ?: syncKey("pieces", pieceId))
+                    put("rate", c.getInt(3)); put("effective_from", c.getString(4)); put("effective_to", if (c.isNull(5)) JSONObject.NULL else c.getString(5))
+                })
+            }
+        }
+        val assistantDaily = JSONArray()
+        db.rawQuery("SELECT id,assistant_id,day_id,status,expense,expense_note,notes FROM assistant_daily_records", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0); val assistantId = c.getLong(1); val dayId = c.getLong(2)
+                assistantDaily.put(row("assistant_daily_records", id) {
+                    put("user_id", userId); put("legacy_id", id)
+                    put("assistant_legacy_id", assistantId); put("assistant_record_key", syncKey("assistants", assistantId))
+                    put("day_legacy_id", dayId); put("day_record_key", dayKeys[dayId] ?: syncKey("days", dayId))
+                    put("status", c.getString(3)); put("expense", c.getInt(4)); put("expense_note", c.getString(5)); put("notes", c.getString(6))
+                })
+            }
+        }
+        val assistantWithdrawals = JSONArray()
+        db.rawQuery("SELECT id,assistant_id,date_value,amount,note FROM assistant_withdrawals", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0); val assistantId = c.getLong(1)
+                assistantWithdrawals.put(row("assistant_withdrawals", id) {
+                    put("user_id", userId); put("legacy_id", id)
+                    put("assistant_legacy_id", assistantId); put("assistant_record_key", syncKey("assistants", assistantId))
+                    put("date_value", c.getString(2)); put("amount", c.getInt(3)); put("note", c.getString(4))
+                })
+            }
+        }
         return linkedMapOf(
-            "user_profiles" to profiles,
-            "shops" to shops,
-            "workers" to workers,
-            "months" to months,
-            "pieces" to pieces,
-            "days" to days,
-            "entries" to entries,
-            "individual_entries" to individual,
-            "individual_entry_items" to items
+            "user_profiles" to profiles, "shops" to shops, "workers" to workers, "months" to months,
+            "pieces" to pieces, "days" to days, "entries" to entries, "individual_entries" to individual,
+            "individual_entry_items" to items, "assistants" to assistants,
+            "assistant_piece_rates" to assistantRates, "assistant_daily_records" to assistantDaily,
+            "assistant_withdrawals" to assistantWithdrawals
         )
     }
 
