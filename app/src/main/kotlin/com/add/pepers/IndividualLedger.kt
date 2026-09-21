@@ -364,12 +364,13 @@ internal fun IndividualLedger(
             }
         }
 
-        if (selectedShopId != null) {
+        val assistantDay = bundle.days.firstOrNull { it.date == selectedDate }
+        if (selectedShopId != null && assistantDay != null) {
             AssistantDailySection(
                 database = database,
                 shopId = selectedShopId,
                 bundle = bundle,
-                day = bundle.days.firstOrNull { it.date == selectedDate } ?: return@Column,
+                day = assistantDay,
                 pieces = pieces
             )
             Spacer(Modifier.height(4.dp))
