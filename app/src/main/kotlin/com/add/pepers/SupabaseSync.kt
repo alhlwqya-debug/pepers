@@ -572,7 +572,7 @@ private object LocalSyncSnapshot {
             }
         }
         val assistantDaily = JSONArray()
-        db.rawQuery("SELECT id,assistant_id,day_id,status,expense,expense_note,notes FROM assistant_daily_records", null).use { c ->
+        db.rawQuery("SELECT id,assistant_id,day_id,status,expense,expense_note,notes,reported_quantity,entered_by,approval_status FROM assistant_daily_records", null).use { c ->
             while (c.moveToNext()) {
                 val id = c.getLong(0); val assistantId = c.getLong(1); val dayId = c.getLong(2)
                 assistantDaily.put(row("assistant_daily_records", id) {
