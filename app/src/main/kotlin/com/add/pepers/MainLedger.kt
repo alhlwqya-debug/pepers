@@ -419,8 +419,7 @@ internal fun MainLedger(
                 shopId = selectedShopId,
                 bundle = bundle,
                 day = selectedAssistantDay,
-                pieces = pieces,
-                onSaved = { onEditQuantity(selectedAssistantDay, pieces.firstOrNull() ?: return@AssistantDailySection, "") }
+                pieces = pieces
             )
             Spacer(Modifier.height(4.dp))
         }
