@@ -579,7 +579,7 @@ private object LocalSyncSnapshot {
                     put("user_id", userId); put("legacy_id", id)
                     put("assistant_legacy_id", assistantId); put("assistant_record_key", syncKey("assistants", assistantId))
                     put("day_legacy_id", dayId); put("day_record_key", dayKeys[dayId] ?: syncKey("days", dayId))
-                    put("status", c.getString(3)); put("expense", c.getInt(4)); put("expense_note", c.getString(5)); put("notes", c.getString(6))
+                    put("status", c.getString(3)); put("expense", c.getInt(4)); put("expense_note", c.getString(5)); put("notes", c.getString(6)); put("reported_quantity", c.getInt(7)); put("entered_by", c.getString(8)); put("approval_status", c.getString(9))
                 })
             }
         }
