@@ -59,6 +59,9 @@ data class AssistantRecord(
     val workerId: Long?,
     val name: String,
     val task: String,
+    val phone: String,
+    val linkCode: String,
+    val defaultRate: Int,
     val startDate: String,
     val endDate: String?,
     val active: Boolean,
@@ -171,7 +174,7 @@ SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "add_paper.db"
-        private const val DATABASE_VERSION = 7
+        private const val DATABASE_VERSION = 8
 
         private const val TABLE_SHOPS = "shops"
         private const val TABLE_WORKERS = "workers"
@@ -396,6 +399,9 @@ SQLiteOpenHelper(
                 worker_id INTEGER,
                 name TEXT NOT NULL,
                 task TEXT NOT NULL DEFAULT '',
+                phone TEXT NOT NULL DEFAULT '',
+                link_code TEXT NOT NULL DEFAULT '',
+                default_rate INTEGER NOT NULL DEFAULT 0,
                 start_date TEXT NOT NULL,
                 end_date TEXT,
                 active INTEGER NOT NULL DEFAULT 1,
@@ -455,6 +461,13 @@ SQLiteOpenHelper(
         createAssistantSchema(db)
     }
 
+    private fun migrateToVersion8(db: SQLiteDatabase) {
+        addColumnIfMissing(db, "assistants", "phone", "TEXT NOT NULL DEFAULT ''")
+        addColumnIfMissing(db, "assistants", "link_code", "TEXT NOT NULL DEFAULT ''")
+        addColumnIfMissing(db, "assistants", "default_rate", "INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_assistants_link_code ON assistants(link_code) WHERE link_code <> ''")
+    }
+
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             migrateToVersion2(db)
@@ -473,6 +486,9 @@ SQLiteOpenHelper(
         }
         if (oldVersion < 7) {
             migrateToVersion7(db)
+        }
+        if (oldVersion < 8) {
+            migrateToVersion8(db)
         }
     }
 
@@ -1664,7 +1680,9 @@ SQLiteOpenHelper(
         name: String,
         task: String,
         startDate: String,
-        notes: String = ""
+        notes: String = "",
+        phone: String = "",
+        defaultRate: Int = 0
     ): Long {
         val cleanName = name.trim()
         if (cleanName.isEmpty() || startDate.isBlank()) return -1L
@@ -1673,11 +1691,19 @@ SQLiteOpenHelper(
             if (workerId == null) putNull("worker_id") else put("worker_id", workerId)
             put("name", cleanName)
             put("task", task.trim())
+            put("phone", phone.trim())
+            put("link_code", generateAssistantLinkCode())
+            put("default_rate", defaultRate.coerceAtLeast(0))
             put("start_date", startDate)
             put("active", 1)
             put("notes", notes.trim())
         }
         return writableDatabase.insert("assistants", null, values)
+    }
+
+    private fun generateAssistantLinkCode(): String {
+        val random = java.util.UUID.randomUUID().toString().replace("-", "").take(10).uppercase(Locale.ROOT)
+        return "AST-$random"
     }
 
     fun getAssistants(shopId: Long, includeInactive: Boolean = true): List<AssistantRecord> {
@@ -1691,6 +1717,9 @@ SQLiteOpenHelper(
                     workerId = c.getLong(c.getColumnIndexOrThrow("worker_id")).takeIf { !c.isNull(c.getColumnIndexOrThrow("worker_id")) },
                     name = c.getString(c.getColumnIndexOrThrow("name")),
                     task = c.getString(c.getColumnIndexOrThrow("task")),
+                    phone = c.getString(c.getColumnIndexOrThrow("phone")),
+                    linkCode = c.getString(c.getColumnIndexOrThrow("link_code")),
+                    defaultRate = c.getInt(c.getColumnIndexOrThrow("default_rate")),
                     startDate = c.getString(c.getColumnIndexOrThrow("start_date")),
                     endDate = c.getString(c.getColumnIndexOrThrow("end_date")),
                     active = c.getInt(c.getColumnIndexOrThrow("active")) != 0,
@@ -1767,7 +1796,7 @@ SQLiteOpenHelper(
         ).use { c ->
             if (c.moveToFirst()) return c.getInt(0)
         }
-        return 0
+        return getAssistant(assistantId)?.defaultRate ?: 0
     }
 
     fun setAssistantDailyRecord(
@@ -1837,6 +1866,9 @@ SQLiteOpenHelper(
                     workerId = c.getLong(c.getColumnIndexOrThrow("worker_id")).takeIf { !c.isNull(c.getColumnIndexOrThrow("worker_id")) },
                     name = c.getString(c.getColumnIndexOrThrow("name")),
                     task = c.getString(c.getColumnIndexOrThrow("task")),
+                    phone = c.getString(c.getColumnIndexOrThrow("phone")),
+                    linkCode = c.getString(c.getColumnIndexOrThrow("link_code")),
+                    defaultRate = c.getInt(c.getColumnIndexOrThrow("default_rate")),
                     startDate = c.getString(c.getColumnIndexOrThrow("start_date")),
                     endDate = c.getString(c.getColumnIndexOrThrow("end_date")).takeIf { !c.isNull(c.getColumnIndexOrThrow("end_date")) },
                     active = c.getInt(c.getColumnIndexOrThrow("active")) != 0,
