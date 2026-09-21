@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -58,6 +59,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
@@ -65,6 +67,7 @@ import com.add.pepers.cloud.AuthResult
 import com.add.pepers.cloud.AuthSession
 import com.add.pepers.cloud.SupabaseAuthRepository
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 private val AuthAppBackground = Color(0xFFFFF8FC)
 private val AuthPrimary = Color(0xFF7B2CBF)
