@@ -1819,6 +1819,10 @@ SQLiteOpenHelper(
         return writableDatabase.insert("assistant_withdrawals", null, values)
     }
 
+    fun getAssistant(assistantId: Long): AssistantRecord? {
+        return getAssistants(shopId = null, includeInactive = true).firstOrNull { it.id == assistantId }
+    }
+
     fun getAssistantWithdrawals(assistantId: Long): List<AssistantWithdrawalRecord> {
         val result = mutableListOf<AssistantWithdrawalRecord>()
         readableDatabase.query("assistant_withdrawals", null, "assistant_id = ?", arrayOf(assistantId.toString()), null, null, "date_value DESC, id DESC").use { c ->
