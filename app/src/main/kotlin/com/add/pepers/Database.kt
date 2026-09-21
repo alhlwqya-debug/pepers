@@ -1494,6 +1494,18 @@ SQLiteOpenHelper(
     fun calculateIndividualDayEarned(entries: List<IndividualEntryRecord>): Int =
         entries.sumOf(::calculateIndividualEntryEarned)
 
+    fun getDayRecordForAnyMonth(shopId: Long, date: String): DayRecord? {
+        readableDatabase.rawQuery(
+            "SELECT d.id, d.month_id FROM days d JOIN months m ON m.id = d.month_id WHERE m.shop_id = ? AND d.date_value = ? LIMIT 1",
+            arrayOf(shopId.toString(), date)
+        ).use { cursor ->
+            if (cursor.moveToFirst()) {
+                return getDayRecord(cursor.getLong(1), date)
+            }
+        }
+        return null
+    }
+
     fun getDayRecord(monthId: Long, date: String): DayRecord? {
         return getDays(monthId).firstOrNull { it.date == date }
     }
