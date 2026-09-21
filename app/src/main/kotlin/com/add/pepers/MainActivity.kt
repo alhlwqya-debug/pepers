@@ -617,6 +617,8 @@ private fun AssistantAccountScreen(repository: SupabaseAuthRepository) {
             Text("السعر: ${linked.optInt("rate")} ريال/قطعة")
             Spacer(Modifier.height(18.dp))
             Text("تم ربط حسابك بالخياط. سيستخدم الطرفان سجل اليوم نفسه لمنع تكرار العمل أو المصروف.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(18.dp))
+            AssistantDailyWorkForm(repository)
         }
     }
 }
@@ -671,5 +673,42 @@ private fun TailorWorkspace(repository: SupabaseAuthRepository) {
                 confirmButton = { TextButton(onClick = { show = false }) { Text("لاحقًا") } }
             )
         }
+    }
+}
+
+@Composable
+private fun AssistantDailyWorkForm(repository: SupabaseAuthRepository) {
+    val scope = rememberCoroutineScope()
+    val today = remember { java.text.SimpleDateFormat("yyyy/MM/dd", Locale.ENGLISH).format(java.util.Date()) }
+    var date by rememberSaveable { mutableStateOf(today) }
+    var quantity by rememberSaveable { mutableStateOf("") }
+    var expense by rememberSaveable { mutableStateOf("") }
+    var note by rememberSaveable { mutableStateOf("") }
+    var message by rememberSaveable { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth()) {
+        Text("تسجيل عمل اليوم", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = AuthPrimaryDark)
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(date, { date = it }, label = { Text("التاريخ") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(quantity, { quantity = it.filter(Char::isDigit) }, label = { Text("عدد القطع") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(expense, { expense = it.filter(Char::isDigit) }, label = { Text("المصروف / السحبية") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(note, { note = it }, label = { Text("ملاحظة") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(10.dp))
+        Button(enabled = !loading && quantity.isNotBlank(), onClick = {
+            loading = true
+            scope.launch {
+                when (val result = repository.saveAssistantDailyWork(date, quantity.toIntOrNull() ?: 0, expense.toIntOrNull() ?: 0, note)) {
+                    is AuthResult.SignedIn -> message = "تم حفظ السجل كطلب تعديل بانتظار اعتماد الخياط. لن تتم إضافة سجل ثانٍ لنفس اليوم."
+                    is AuthResult.Failure -> message = result.message
+                }
+                loading = false
+            }
+        }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
+            Text(if (loading) "جارٍ الحفظ…" else "حفظ العمل")
+        }
+        message?.let { Spacer(Modifier.height(8.dp)); Text(it, color = AuthPrimaryDark, fontSize = 11.sp) }
     }
 }
