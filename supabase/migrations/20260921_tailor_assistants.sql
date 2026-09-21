@@ -115,3 +115,73 @@ alter table public.assistants add column if not exists phone text not null defau
 alter table public.assistants add column if not exists link_code text not null default '';
 alter table public.assistants add column if not exists default_rate integer not null default 0 check(default_rate >= 0);
 create unique index if not exists assistants_link_code_idx on public.assistants(link_code) where link_code <> '';
+
+
+-- Secure account linking and shared daily workspace.
+create table if not exists public.assistant_link_requests (
+  id uuid primary key default gen_random_uuid(),
+  assistant_id uuid not null references public.assistants(id) on delete cascade,
+  assistant_user_id uuid not null references auth.users(id) on delete cascade,
+  tailor_user_id uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'PENDING' check(status in ('PENDING','APPROVED','REJECTED','REVOKED')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.assistant_link_requests enable row level security;
+revoke all on public.assistant_link_requests from anon, authenticated;
+grant select, insert, update on public.assistant_link_requests to authenticated;
+drop policy if exists assistant_link_request_parties on public.assistant_link_requests;
+create policy assistant_link_request_parties on public.assistant_link_requests for all to authenticated
+using ((select auth.uid()) = assistant_user_id or (select auth.uid()) = tailor_user_id)
+with check ((select auth.uid()) = assistant_user_id or (select auth.uid()) = tailor_user_id);
+create index if not exists assistant_link_requests_tailor_idx on public.assistant_link_requests(tailor_user_id,status);
+create index if not exists assistant_link_requests_assistant_idx on public.assistant_link_requests(assistant_user_id,status);
+
+alter table public.assistant_daily_records add column if not exists reported_quantity integer not null default 0 check(reported_quantity >= 0);
+alter table public.assistant_daily_records add column if not exists entered_by text not null default 'TAILOR' check(entered_by in ('TAILOR','ASSISTANT'));
+alter table public.assistant_daily_records add column if not exists approval_status text not null default 'APPROVED' check(approval_status in ('PENDING','APPROVED','REJECTED'));
+
+create or replace function public.request_assistant_link(p_link_code text)
+returns jsonb language plpgsql security definer set search_path=public
+as $$
+declare a public.assistants%rowtype; req jsonb;
+begin
+  select * into a from public.assistants where upper(link_code)=upper(trim(p_link_code)) and active=true limit 1;
+  if a.id is null then raise exception 'ASSISTANT_LINK_CODE_NOT_FOUND'; end if;
+  if a.user_id = auth.uid() then raise exception 'ASSISTANT_SELF_LINK'; end if;
+  insert into public.assistant_link_requests(assistant_id,assistant_user_id,tailor_user_id,status)
+  values(a.id,auth.uid(),a.user_id,'PENDING');
+  return jsonb_build_object('assistant_id',a.id,'name',a.name,'task',a.task,'status','PENDING');
+end $$;
+
+create or replace function public.approve_assistant_link(p_request_id uuid, p_approve boolean)
+returns jsonb language plpgsql security definer set search_path=public
+as $$
+declare r public.assistant_link_requests%rowtype;
+begin
+  select * into r from public.assistant_link_requests where id=p_request_id and tailor_user_id=auth.uid() for update;
+  if r.id is null then raise exception 'LINK_REQUEST_NOT_FOUND'; end if;
+  update public.assistant_link_requests set status=case when p_approve then 'APPROVED' else 'REJECTED' end,updated_at=now() where id=r.id;
+  return jsonb_build_object('request_id',r.id,'status',case when p_approve then 'APPROVED' else 'REJECTED' end);
+end $$;
+
+create or replace function public.my_assistant_link()
+returns jsonb language sql security definer set search_path=public
+as $$
+select coalesce(jsonb_agg(jsonb_build_object('request_id',r.id,'assistant_id',r.assistant_id,'name',a.name,'task',a.task,'phone',a.phone,'link_code',a.link_code,'rate',a.default_rate,'status',r.status)), '[]'::jsonb)
+from public.assistant_link_requests r join public.assistants a on a.id=r.assistant_id
+where r.assistant_user_id=auth.uid() and r.status='APPROVED';
+$$;
+
+create or replace function public.pending_assistant_links()
+returns jsonb language sql security definer set search_path=public
+as $$
+select coalesce(jsonb_agg(jsonb_build_object('request_id',r.id,'assistant_id',r.assistant_id,'name',a.name,'task',a.task,'phone',a.phone,'status',r.status)), '[]'::jsonb)
+from public.assistant_link_requests r join public.assistants a on a.id=r.assistant_id
+where r.tailor_user_id=auth.uid() and r.status='PENDING';
+$$;
+
+grant execute on function public.request_assistant_link(text) to authenticated;
+grant execute on function public.approve_assistant_link(uuid,boolean) to authenticated;
+grant execute on function public.my_assistant_link() to authenticated;
+grant execute on function public.pending_assistant_links() to authenticated;
