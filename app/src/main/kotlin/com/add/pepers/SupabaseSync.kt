@@ -245,7 +245,7 @@ private object LocalSyncImporter {
             val workerId = if (o.isNull("worker_record_key")) null else resolve("workers", text(o, "worker_record_key"), long(o, "worker_legacy_id"))
             ensure("assistants", text(o, "record_key"), id, ContentValues().apply {
                 put("shop_id", shopId); if (workerId != null) put("worker_id", workerId) else putNull("worker_id")
-                put("name", text(o, "name")); put("task", text(o, "task")); put("start_date", text(o, "start_date"))
+                put("name", text(o, "name")); put("task", text(o, "task")); put("phone", text(o, "phone")); put("link_code", text(o, "link_code")); put("default_rate", o.optInt("default_rate")); put("start_date", text(o, "start_date"))
                 if (o.isNull("end_date")) putNull("end_date") else put("end_date", text(o, "end_date"))
                 put("active", if (o.optBoolean("active", true)) 1 else 0); put("notes", text(o, "notes"))
             })
@@ -546,7 +546,7 @@ private object LocalSyncSnapshot {
         }
 
         val assistants = JSONArray()
-        db.rawQuery("SELECT id,shop_id,worker_id,name,task,start_date,end_date,active,notes FROM assistants", null).use { c ->
+        db.rawQuery("SELECT id,shop_id,worker_id,name,task,phone,link_code,default_rate,start_date,end_date,active,notes FROM assistants", null).use { c ->
             while (c.moveToNext()) {
                 val id = c.getLong(0); val shopId = c.getLong(1); val workerId = if (c.isNull(2)) null else c.getLong(2)
                 assistants.put(row("assistants", id) {
@@ -554,8 +554,8 @@ private object LocalSyncSnapshot {
                     put("shop_legacy_id", shopId); put("shop_record_key", shopKeys[shopId] ?: syncKey("shops", shopId))
                     put("worker_legacy_id", workerId ?: JSONObject.NULL)
                     put("worker_record_key", workerId?.let { workerKeys[it] ?: syncKey("workers", it) } ?: JSONObject.NULL)
-                    put("name", c.getString(3)); put("task", c.getString(4)); put("start_date", c.getString(5))
-                    put("end_date", if (c.isNull(6)) JSONObject.NULL else c.getString(6)); put("active", c.getInt(7) != 0); put("notes", c.getString(8))
+                    put("name", c.getString(3)); put("task", c.getString(4)); put("phone", c.getString(5)); put("link_code", c.getString(6)); put("default_rate", c.getInt(7)); put("start_date", c.getString(8))
+                    put("end_date", if (c.isNull(9)) JSONObject.NULL else c.getString(9)); put("active", c.getInt(10) != 0); put("notes", c.getString(11))
                 })
             }
         }
