@@ -228,7 +228,7 @@ select coalesce(jsonb_agg(jsonb_build_object(
  'quantity',d.reported_quantity,'expense',d.expense,'note',d.notes,'status',d.approval_status
 )), '[]'::jsonb)
 from public.assistant_daily_records d
-join public.assistants a on a.id::text=d.assistant_record_key
+join public.assistants a on a.record_key=d.assistant_record_key
 where d.user_id=auth.uid() and d.approval_status='PENDING';
 $f$;
 
