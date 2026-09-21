@@ -1835,6 +1835,25 @@ SQLiteOpenHelper(
         return result
     }
 
+    fun calculateAssistantDayEarned(assistant: AssistantRecord, bundle: MonthBundle, day: DayRecord): Int {
+        if (day.date < assistant.startDate || (assistant.endDate != null && day.date > assistant.endDate!!)) return 0
+        if (getAssistantDailyRecord(assistant.id, day.id)?.status == AssistantDailyStatus.ABSENT) return 0
+        var total = 0
+        val shopMode = getShops().firstOrNull { it.id == bundle.month.shopId }?.registrationMode
+        if (shopMode == RegistrationMode.INDIVIDUAL) {
+            getIndividualEntries(bundle.month.id, day.date).forEach { entry ->
+                entry.quantities.forEach { (pieceId, quantity) ->
+                    if (quantity > 0) total += quantity * assistantRateOnDate(assistant.id, pieceId, day.date)
+                }
+            }
+        } else {
+            day.quantities.forEach { (pieceId, quantity) ->
+                if (quantity > 0) total += quantity * assistantRateOnDate(assistant.id, pieceId, day.date)
+            }
+        }
+        return total
+    }
+
     fun calculateAssistantEarned(assistant: AssistantRecord, bundle: MonthBundle): Int {
         var total = 0
         val activeStart = assistant.startDate
@@ -1843,18 +1862,7 @@ SQLiteOpenHelper(
             if (day.date < activeStart || (activeEnd != null && day.date > activeEnd)) return@forEach
             val daily = getAssistantDailyRecord(assistant.id, day.id)
             if (daily?.status == AssistantDailyStatus.ABSENT) return@forEach
-            val shopMode = getShops().firstOrNull { it.id == bundle.month.shopId }?.registrationMode
-            if (shopMode == RegistrationMode.INDIVIDUAL) {
-                getIndividualEntries(bundle.month.id, day.date).forEach { entry ->
-                    entry.quantities.forEach { (pieceId, quantity) ->
-                        if (quantity > 0) total += quantity * assistantRateOnDate(assistant.id, pieceId, day.date)
-                    }
-                }
-            } else {
-                day.quantities.forEach { (pieceId, quantity) ->
-                    if (quantity > 0) total += quantity * assistantRateOnDate(assistant.id, pieceId, day.date)
-                }
-            }
+            total += calculateAssistantDayEarned(assistant, bundle, day)
         }
         return total
     }
