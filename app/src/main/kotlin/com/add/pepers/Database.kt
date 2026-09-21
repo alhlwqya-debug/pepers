@@ -1870,6 +1870,33 @@ SQLiteOpenHelper(
             if (c.moveToFirst()) c.getString(0) else "9999/99/99"
         }
 
+    fun calculateAssistantBalance(assistant: AssistantRecord, bundles: List<MonthBundle>): Int {
+        val earned = bundles.sumOf { calculateAssistantEarned(assistant, it) }
+        val expenses = bundles.sumOf { calculateAssistantExpense(assistant.id, it) }
+        val withdrawals = calculateAssistantWithdrawals(assistant.id)
+        return earned + expenses - withdrawals
+    }
+
+    fun calculateTailorAssistantShares(shopId: Long, bundles: List<MonthBundle>): Int =
+        getAssistants(shopId).sumOf { assistant ->
+            bundles.sumOf { calculateAssistantEarned(assistant, it) }
+        }
+
+    fun calculateTailorNetAfterAssistants(shopId: Long, bundles: List<MonthBundle>): Int {
+        val gross = bundles.sumOf { bundle ->
+            val mode = getShops().firstOrNull { it.id == bundle.month.shopId }?.registrationMode
+            if (mode == RegistrationMode.INDIVIDUAL) {
+                getDays(bundle.month.id).sumOf { day ->
+                    calculateIndividualDayEarned(getIndividualEntries(bundle.month.id, day.date))
+                }
+            } else {
+                calculateMonthEarned(bundle)
+            }
+        }
+        val tailorExpenses = bundles.sumOf { calculateMonthExpenses(it) }
+        return gross - calculateTailorAssistantShares(shopId, bundles) - tailorExpenses
+    }
+
     fun calculateAssistantWithdrawals(assistantId: Long, fromDate: String? = null, toDate: String? = null): Int {
         val clauses = mutableListOf("assistant_id = ?")
         val args = mutableListOf(assistantId.toString())
