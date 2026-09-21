@@ -83,6 +83,7 @@ internal fun DrawerContent(
     val currentShop = shops.firstOrNull { it.id == selectedShopId }
     var showSignOutDialog by remember { mutableStateOf(false) }
     var showShopSettings by remember { mutableStateOf(false) }
+    var showAssistantManager by remember { mutableStateOf(false) }
     var showAppSettings by remember { mutableStateOf(false) }
     var showSecuritySettings by remember { mutableStateOf(false) }
     var showBackupSettings by remember { mutableStateOf(false) }
@@ -133,7 +134,7 @@ internal fun DrawerContent(
                 }
             }
             Spacer(Modifier.height(7.dp)); DrawerActionButton(text = "إضافة محل جديد", icon = "＋", tint = Purple, onClick = onAddShop, outlined = false)
-            Spacer(Modifier.height(7.dp)); DrawerActionButton(text = "إعدادات المحل", icon = "⚙", tint = AppText, onClick = { showShopSettings = true }, outlined = true)
+            Spacer(Modifier.height(7.dp)); DrawerActionButton(text = "إعدادات المحل", icon = "⚙", tint = AppText, onClick = { showShopSettings = true }, outlined = true)\n            Spacer(Modifier.height(7.dp)); DrawerActionButton(text = "مساعدو الخياط", icon = "👥", tint = AppText, onClick = { showAssistantManager = true }, outlined = true)
             Spacer(Modifier.height(13.dp)); DrawerSectionTitle("الوصول السريع"); Spacer(Modifier.height(6.dp))
             Spacer(Modifier.height(6.dp)); DrawerActionButton(text = "إعدادات التطبيق", icon = "⚙", tint = AppText, onClick = { showAppSettings = true }, outlined = true)
             Spacer(Modifier.height(6.dp)); DrawerActionButton(text = "الإحصائيات", icon = "▥", tint = AppText, onClick = onStatistics, outlined = true)
@@ -174,6 +175,12 @@ internal fun DrawerContent(
             setAppPin(context, pin); appPinEnabled = true; showSetPinDialog = false
             android.widget.Toast.makeText(context, "تم تفعيل قفل التطبيق", android.widget.Toast.LENGTH_SHORT).show()
         })
+    }
+    if (showAssistantManager && currentShop != null) {
+        AssistantManagerDialog(
+            shop = currentShop,
+            onDismiss = { showAssistantManager = false }
+        )
     }
     if (showShopSettings) {
         ShopSettingsDialog(
