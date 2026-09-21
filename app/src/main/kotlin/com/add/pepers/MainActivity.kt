@@ -629,111 +629,49 @@ private fun TailorWorkspace(repository: SupabaseAuthRepository) {
     var dailyRequests by remember { mutableStateOf(org.json.JSONArray()) }
     var show by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) {
-        while (true) {
-            val raw = repository.pendingAssistantLinks()
-            requests = runCatching { org.json.JSONArray(raw) }.getOrDefault(org.json.JSONArray())
+    fun refresh() {
+        scope.launch {
+            requests = runCatching { org.json.JSONArray(repository.pendingAssistantLinks()) }.getOrDefault(org.json.JSONArray())
             dailyRequests = runCatching { org.json.JSONArray(repository.pendingAssistantDaily()) }.getOrDefault(org.json.JSONArray())
             show = requests.length() > 0 || dailyRequests.length() > 0
-            kotlinx.coroutines.delay(10_000)
         }
+    }
+    LaunchedEffect(Unit) {
+        while (true) { refresh(); kotlinx.coroutines.delay(10_000) }
     }
     Box(Modifier.fillMaxSize()) {
         WorkLogSheet()
         if (show) {
             AlertDialog(
                 onDismissRequest = { show = false },
-                title = { Text("طلب ربط مساعد") },
+                title = { Text("طلبات المساعدين") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         for (i in 0 until requests.length()) {
                             val item = requests.getJSONObject(i)
-                            Text("المساعد: ${item.optString("name")}", fontWeight = FontWeight.Bold)
+                            Text("طلب ربط: ${item.optString("name")}", fontWeight = FontWeight.Bold)
                             Text("المهمة: ${item.optString("task").ifBlank { "غير محددة" }}")
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = {
-                                    val id = item.optString("request_id")
-                                    scope.launch {
-                                        if (repository.approveAssistantLink(id, true)) {
-                                            requests = repository.pendingAssistantLinks().let { org.json.JSONArray(it) }
-                                            show = requests.length() > 0
-                                        }
-                                    }
-                                }, modifier = Modifier.weight(1f)) { Text("موافقة") }
-                                OutlinedButton(onClick = {
-                                    val id = item.optString("request_id")
-                                    scope.launch {
-                                        repository.approveAssistantLink(id, false)
-                                        requests = repository.pendingAssistantLinks().let { org.json.JSONArray(it) }
-                                        show = requests.length() > 0
-                                    }
-                                }, modifier = Modifier.weight(1f)) { Text("رفض") }
+                                Button(onClick = { scope.launch { repository.approveAssistantLink(item.optString("request_id"), true); refresh() } }, modifier = Modifier.weight(1f)) { Text("موافقة") }
+                                OutlinedButton(onClick = { scope.launch { repository.approveAssistantLink(item.optString("request_id"), false); refresh() } }, modifier = Modifier.weight(1f)) { Text("رفض") }
+                            }
+                        }
+                        for (i in 0 until dailyRequests.length()) {
+                            val item = dailyRequests.getJSONObject(i)
+                            Text("تسجيل عمل: ${item.optString("name")}", fontWeight = FontWeight.Bold)
+                            Text("التاريخ: ${item.optString("date")} • القطع: ${item.optInt("quantity")} • المصروف: ${item.optInt("expense")}")
+                            if (item.optString("note").isNotBlank()) Text("ملاحظة: ${item.optString("note")}", fontSize = 10.sp)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { scope.launch { repository.approveAssistantDaily(item.optString("id"), true); refresh() } }, modifier = Modifier.weight(1f)) { Text("تأكيد") }
+                                OutlinedButton(onClick = { scope.launch { repository.approveAssistantDaily(item.optString("id"), false); refresh() } }, modifier = Modifier.weight(1f)) { Text("رفض") }
                             }
                         }
                     }
                 },
-                        for (i in 0 until dailyRequests.length()) {
-                            val item = dailyRequests.getJSONObject(i)
-                            Text("سجل عمل من ${item.optString("name")}", fontWeight = FontWeight.Bold)
-                            Text("التاريخ: ${item.optString("date")} • القطع: ${item.optInt("quantity")} • المصروف: ${item.optInt("expense")}")
-                            if (item.optString("note").isNotBlank()) Text("ملاحظة: ${item.optString("note")}", fontSize = 10.sp)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = {
-                                    scope.launch {
-                                        if (repository.approveAssistantDaily(item.optString("id"), true)) {
-                                            dailyRequests = org.json.JSONArray(repository.pendingAssistantDaily())
-                                            show = requests.length() > 0 || dailyRequests.length() > 0
-                                        }
-                                    }
-                                }, modifier = Modifier.weight(1f)) { Text("تأكيد") }
-                                OutlinedButton(onClick = {
-                                    scope.launch {
-                                        repository.approveAssistantDaily(item.optString("id"), false)
-                                        dailyRequests = org.json.JSONArray(repository.pendingAssistantDaily())
-                                        show = requests.length() > 0 || dailyRequests.length() > 0
-                                    }
-                                }, modifier = Modifier.weight(1f)) { Text("رفض") }
-                            }
-                        }
                 confirmButton = { TextButton(onClick = { show = false }) { Text("لاحقًا") } }
             )
         }
     }
 }
 
-@Composable
-private fun AssistantDailyWorkForm(repository: SupabaseAuthRepository) {
-    val scope = rememberCoroutineScope()
-    val today = remember { java.text.SimpleDateFormat("yyyy/MM/dd", Locale.ENGLISH).format(java.util.Date()) }
-    var date by rememberSaveable { mutableStateOf(today) }
-    var quantity by rememberSaveable { mutableStateOf("") }
-    var expense by rememberSaveable { mutableStateOf("") }
-    var note by rememberSaveable { mutableStateOf("") }
-    var message by rememberSaveable { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth()) {
-        Text("تسجيل عمل اليوم", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = AuthPrimaryDark)
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(date, { date = it }, label = { Text("التاريخ") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(quantity, { quantity = it.filter(Char::isDigit) }, label = { Text("عدد القطع") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(expense, { expense = it.filter(Char::isDigit) }, label = { Text("المصروف / السحبية") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(note, { note = it }, label = { Text("ملاحظة") }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(10.dp))
-        Button(enabled = !loading && quantity.isNotBlank(), onClick = {
-            loading = true
-            scope.launch {
-                when (val result = repository.saveAssistantDailyWork(date, quantity.toIntOrNull() ?: 0, expense.toIntOrNull() ?: 0, note)) {
-                    is AuthResult.SignedIn -> message = "تم حفظ السجل كطلب تعديل بانتظار اعتماد الخياط. لن تتم إضافة سجل ثانٍ لنفس اليوم."
-                    is AuthResult.Failure -> message = result.message
-                }
-                loading = false
-            }
-        }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
-            Text(if (loading) "جارٍ الحفظ…" else "حفظ العمل")
-        }
-        message?.let { Spacer(Modifier.height(8.dp)); Text(it, color = AuthPrimaryDark, fontSize = 11.sp) }
-    }
-}
+
