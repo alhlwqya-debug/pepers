@@ -53,6 +53,47 @@ internal fun normalizePageForSearch(value: String): String = value.trim().map {
     }
 }.joinToString("").filter { it.isDigit() || it.isLetter() }
 
+data class AssistantRecord(
+    val id: Long,
+    val shopId: Long,
+    val workerId: Long?,
+    val name: String,
+    val task: String,
+    val startDate: String,
+    val endDate: String?,
+    val active: Boolean,
+    val notes: String
+)
+
+data class AssistantPieceRateRecord(
+    val id: Long,
+    val assistantId: Long,
+    val pieceId: Long,
+    val rate: Int,
+    val effectiveFrom: String,
+    val effectiveTo: String?
+)
+
+enum class AssistantDailyStatus { WORKED, ABSENT, NO_WORK }
+
+data class AssistantDailyRecord(
+    val id: Long,
+    val assistantId: Long,
+    val dayId: Long,
+    val status: AssistantDailyStatus,
+    val expense: Int,
+    val expenseNote: String,
+    val notes: String
+)
+
+data class AssistantWithdrawalRecord(
+    val id: Long,
+    val assistantId: Long,
+    val date: String,
+    val amount: Int,
+    val note: String
+)
+
 data class ShopRecord(
     val id: Long,
     val name: String,
@@ -130,7 +171,7 @@ SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "add_paper.db"
-        private const val DATABASE_VERSION = 6
+        private const val DATABASE_VERSION = 7
 
         private const val TABLE_SHOPS = "shops"
         private const val TABLE_WORKERS = "workers"
@@ -347,6 +388,73 @@ SQLiteOpenHelper(
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_individual_items_entry ON $TABLE_INDIVIDUAL_ITEMS($COL_ENTRY_ID)")
     }
 
+    private fun createAssistantSchema(db: SQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS assistants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shop_id INTEGER NOT NULL,
+                worker_id INTEGER,
+                name TEXT NOT NULL,
+                task TEXT NOT NULL DEFAULT '',
+                start_date TEXT NOT NULL,
+                end_date TEXT,
+                active INTEGER NOT NULL DEFAULT 1,
+                notes TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY(shop_id) REFERENCES shops(id) ON DELETE CASCADE,
+                FOREIGN KEY(worker_id) REFERENCES workers(id) ON DELETE SET NULL
+            )
+        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS assistant_piece_rates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                assistant_id INTEGER NOT NULL,
+                piece_id INTEGER NOT NULL,
+                rate INTEGER NOT NULL DEFAULT 0,
+                effective_from TEXT NOT NULL,
+                effective_to TEXT,
+                FOREIGN KEY(assistant_id) REFERENCES assistants(id) ON DELETE CASCADE,
+                FOREIGN KEY(piece_id) REFERENCES pieces(id) ON DELETE CASCADE,
+                UNIQUE(assistant_id, piece_id, effective_from)
+            )
+        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS assistant_daily_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                assistant_id INTEGER NOT NULL,
+                day_id INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'WORKED'
+                    CHECK(status IN ('WORKED','ABSENT','NO_WORK')),
+                expense INTEGER NOT NULL DEFAULT 0,
+                expense_note TEXT NOT NULL DEFAULT '',
+                notes TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY(assistant_id) REFERENCES assistants(id) ON DELETE CASCADE,
+                FOREIGN KEY(day_id) REFERENCES days(id) ON DELETE CASCADE,
+                UNIQUE(assistant_id, day_id)
+            )
+        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS assistant_withdrawals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                assistant_id INTEGER NOT NULL,
+                date_value TEXT NOT NULL,
+                amount INTEGER NOT NULL DEFAULT 0,
+                note TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY(assistant_id) REFERENCES assistants(id) ON DELETE CASCADE
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_assistants_shop ON assistants(shop_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_assistants_worker ON assistants(worker_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_assistant_rates_assistant ON assistant_piece_rates(assistant_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_assistant_rates_piece ON assistant_piece_rates(piece_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_assistant_daily_assistant ON assistant_daily_records(assistant_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_assistant_daily_day ON assistant_daily_records(day_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_assistant_withdrawals_assistant ON assistant_withdrawals(assistant_id)")
+    }
+
+    private fun migrateToVersion7(db: SQLiteDatabase) {
+        createAssistantSchema(db)
+    }
+
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             migrateToVersion2(db)
@@ -362,6 +470,9 @@ SQLiteOpenHelper(
         }
         if (oldVersion < 6) {
             migrateToVersion6(db)
+        }
+        if (oldVersion < 7) {
+            migrateToVersion7(db)
         }
     }
 
@@ -1383,6 +1494,18 @@ SQLiteOpenHelper(
     fun calculateIndividualDayEarned(entries: List<IndividualEntryRecord>): Int =
         entries.sumOf(::calculateIndividualEntryEarned)
 
+    fun getDayRecordForAnyMonth(shopId: Long, date: String): DayRecord? {
+        readableDatabase.rawQuery(
+            "SELECT d.id, d.month_id FROM days d JOIN months m ON m.id = d.month_id WHERE m.shop_id = ? AND d.date_value = ? LIMIT 1",
+            arrayOf(shopId.toString(), date)
+        ).use { cursor ->
+            if (cursor.moveToFirst()) {
+                return getDayRecord(cursor.getLong(1), date)
+            }
+        }
+        return null
+    }
+
     fun getDayRecord(monthId: Long, date: String): DayRecord? {
         return getDays(monthId).firstOrNull { it.date == date }
     }
@@ -1532,6 +1655,255 @@ SQLiteOpenHelper(
             }
         } catch (_: Exception) {
             ""
+        }
+    }
+
+    fun addAssistant(
+        shopId: Long,
+        workerId: Long?,
+        name: String,
+        task: String,
+        startDate: String,
+        notes: String = ""
+    ): Long {
+        val cleanName = name.trim()
+        if (cleanName.isEmpty() || startDate.isBlank()) return -1L
+        val values = ContentValues().apply {
+            put("shop_id", shopId)
+            if (workerId == null) putNull("worker_id") else put("worker_id", workerId)
+            put("name", cleanName)
+            put("task", task.trim())
+            put("start_date", startDate)
+            put("active", 1)
+            put("notes", notes.trim())
+        }
+        return writableDatabase.insert("assistants", null, values)
+    }
+
+    fun getAssistants(shopId: Long, includeInactive: Boolean = true): List<AssistantRecord> {
+        val result = mutableListOf<AssistantRecord>()
+        val where = if (includeInactive) "shop_id = ?" else "shop_id = ? AND active = 1"
+        readableDatabase.query("assistants", null, where, arrayOf(shopId.toString()), null, null, "active DESC, name ASC").use { c ->
+            while (c.moveToNext()) {
+                result += AssistantRecord(
+                    id = c.getLong(c.getColumnIndexOrThrow("id")),
+                    shopId = c.getLong(c.getColumnIndexOrThrow("shop_id")),
+                    workerId = c.getLong(c.getColumnIndexOrThrow("worker_id")).takeIf { !c.isNull(c.getColumnIndexOrThrow("worker_id")) },
+                    name = c.getString(c.getColumnIndexOrThrow("name")),
+                    task = c.getString(c.getColumnIndexOrThrow("task")),
+                    startDate = c.getString(c.getColumnIndexOrThrow("start_date")),
+                    endDate = c.getString(c.getColumnIndexOrThrow("end_date")),
+                    active = c.getInt(c.getColumnIndexOrThrow("active")) != 0,
+                    notes = c.getString(c.getColumnIndexOrThrow("notes"))
+                )
+            }
+        }
+        return result
+    }
+
+    fun updateAssistant(
+        id: Long,
+        name: String,
+        task: String,
+        startDate: String,
+        endDate: String?,
+        active: Boolean,
+        notes: String
+    ) {
+        val values = ContentValues().apply {
+            put("name", name.trim())
+            put("task", task.trim())
+            put("start_date", startDate)
+            if (endDate.isNullOrBlank()) putNull("end_date") else put("end_date", endDate.trim())
+            put("active", if (active) 1 else 0)
+            put("notes", notes.trim())
+        }
+        writableDatabase.update("assistants", values, "id = ?", arrayOf(id.toString()))
+    }
+
+    fun setAssistantPieceRate(
+        assistantId: Long,
+        pieceId: Long,
+        rate: Int,
+        effectiveFrom: String,
+        effectiveTo: String? = null
+    ): Long {
+        val values = ContentValues().apply {
+            put("assistant_id", assistantId)
+            put("piece_id", pieceId)
+            put("rate", rate.coerceAtLeast(0))
+            put("effective_from", effectiveFrom)
+            if (effectiveTo.isNullOrBlank()) putNull("effective_to") else put("effective_to", effectiveTo)
+        }
+        return writableDatabase.insertWithOnConflict(
+            "assistant_piece_rates", null, values, SQLiteDatabase.CONFLICT_REPLACE
+        )
+    }
+
+    fun getAssistantPieceRates(assistantId: Long): List<AssistantPieceRateRecord> {
+        val result = mutableListOf<AssistantPieceRateRecord>()
+        readableDatabase.query("assistant_piece_rates", null, "assistant_id = ?", arrayOf(assistantId.toString()), null, null, "piece_id ASC, effective_from DESC").use { c ->
+            while (c.moveToNext()) {
+                result += AssistantPieceRateRecord(
+                    id = c.getLong(c.getColumnIndexOrThrow("id")),
+                    assistantId = c.getLong(c.getColumnIndexOrThrow("assistant_id")),
+                    pieceId = c.getLong(c.getColumnIndexOrThrow("piece_id")),
+                    rate = c.getInt(c.getColumnIndexOrThrow("rate")),
+                    effectiveFrom = c.getString(c.getColumnIndexOrThrow("effective_from")),
+                    effectiveTo = c.getString(c.getColumnIndexOrThrow("effective_to"))
+                )
+            }
+        }
+        return result
+    }
+
+    private fun assistantRateOnDate(assistantId: Long, pieceId: Long, date: String): Int {
+        readableDatabase.query(
+            "assistant_piece_rates",
+            arrayOf("rate"),
+            "assistant_id = ? AND piece_id = ? AND effective_from <= ? AND (effective_to IS NULL OR effective_to >= ?)",
+            arrayOf(assistantId.toString(), pieceId.toString(), date, date),
+            null, null, "effective_from DESC", "1"
+        ).use { c ->
+            if (c.moveToFirst()) return c.getInt(0)
+        }
+        return 0
+    }
+
+    fun setAssistantDailyRecord(
+        assistantId: Long,
+        dayId: Long,
+        status: AssistantDailyStatus,
+        expense: Int,
+        expenseNote: String,
+        notes: String
+    ): Long {
+        val values = ContentValues().apply {
+            put("assistant_id", assistantId)
+            put("day_id", dayId)
+            put("status", status.name)
+            put("expense", expense.coerceAtLeast(0))
+            put("expense_note", expenseNote.trim())
+            put("notes", notes.trim())
+        }
+        return writableDatabase.insertWithOnConflict(
+            "assistant_daily_records", null, values, SQLiteDatabase.CONFLICT_REPLACE
+        )
+    }
+
+    fun getAssistantDailyRecord(assistantId: Long, dayId: Long): AssistantDailyRecord? {
+        readableDatabase.query("assistant_daily_records", null, "assistant_id = ? AND day_id = ?", arrayOf(assistantId.toString(), dayId.toString()), null, null, null, "1").use { c ->
+            if (c.moveToFirst()) {
+                return AssistantDailyRecord(
+                    id = c.getLong(c.getColumnIndexOrThrow("id")),
+                    assistantId = assistantId,
+                    dayId = dayId,
+                    status = runCatching { AssistantDailyStatus.valueOf(c.getString(c.getColumnIndexOrThrow("status"))) }.getOrDefault(AssistantDailyStatus.WORKED),
+                    expense = c.getInt(c.getColumnIndexOrThrow("expense")),
+                    expenseNote = c.getString(c.getColumnIndexOrThrow("expense_note")),
+                    notes = c.getString(c.getColumnIndexOrThrow("notes"))
+                )
+            }
+        }
+        return null
+    }
+
+    fun addAssistantWithdrawal(assistantId: Long, date: String, amount: Int, note: String): Long {
+        if (amount <= 0 || date.isBlank()) return -1L
+        val values = ContentValues().apply {
+            put("assistant_id", assistantId)
+            put("date_value", date)
+            put("amount", amount)
+            put("note", note.trim())
+        }
+        return writableDatabase.insert("assistant_withdrawals", null, values)
+    }
+
+    fun getAssistantWithdrawals(assistantId: Long): List<AssistantWithdrawalRecord> {
+        val result = mutableListOf<AssistantWithdrawalRecord>()
+        readableDatabase.query("assistant_withdrawals", null, "assistant_id = ?", arrayOf(assistantId.toString()), null, null, "date_value DESC, id DESC").use { c ->
+            while (c.moveToNext()) {
+                result += AssistantWithdrawalRecord(
+                    id = c.getLong(c.getColumnIndexOrThrow("id")),
+                    assistantId = assistantId,
+                    date = c.getString(c.getColumnIndexOrThrow("date_value")),
+                    amount = c.getInt(c.getColumnIndexOrThrow("amount")),
+                    note = c.getString(c.getColumnIndexOrThrow("note"))
+                )
+            }
+        }
+        return result
+    }
+
+    fun calculateAssistantEarned(assistant: AssistantRecord, bundle: MonthBundle): Int {
+        var total = 0
+        val activeStart = assistant.startDate
+        val activeEnd = assistant.endDate
+        bundle.days.forEach { day ->
+            if (day.date < activeStart || (activeEnd != null && day.date > activeEnd)) return@forEach
+            val daily = getAssistantDailyRecord(assistant.id, day.id)
+            if (daily?.status == AssistantDailyStatus.ABSENT) return@forEach
+            val shopMode = getShops().firstOrNull { it.id == bundle.month.shopId }?.registrationMode
+            if (shopMode == RegistrationMode.INDIVIDUAL) {
+                getIndividualEntries(bundle.month.id, day.date).forEach { entry ->
+                    entry.quantities.forEach { (pieceId, quantity) ->
+                        if (quantity > 0) total += quantity * assistantRateOnDate(assistant.id, pieceId, day.date)
+                    }
+                }
+            } else {
+                day.quantities.forEach { (pieceId, quantity) ->
+                    if (quantity > 0) total += quantity * assistantRateOnDate(assistant.id, pieceId, day.date)
+                }
+            }
+        }
+        return total
+    }
+
+    fun calculateAssistantExpense(assistantId: Long, bundle: MonthBundle): Int =
+        bundle.days.sumOf { day ->
+            if (day.date < getAssistantStartDate(assistantId)) 0
+            else getAssistantDailyRecord(assistantId, day.id)?.expense ?: 0
+        }
+
+    private fun getAssistantStartDate(assistantId: Long): String =
+        readableDatabase.query("assistants", arrayOf("start_date"), "id = ?", arrayOf(assistantId.toString()), null, null, null, "1").use { c ->
+            if (c.moveToFirst()) c.getString(0) else "9999/99/99"
+        }
+
+    fun calculateAssistantBalance(assistant: AssistantRecord, bundles: List<MonthBundle>): Int {
+        val earned = bundles.sumOf { calculateAssistantEarned(assistant, it) }
+        val expenses = bundles.sumOf { calculateAssistantExpense(assistant.id, it) }
+        val withdrawals = calculateAssistantWithdrawals(assistant.id)
+        return earned + expenses - withdrawals
+    }
+
+    fun calculateTailorAssistantShares(shopId: Long, bundles: List<MonthBundle>): Int =
+        getAssistants(shopId).sumOf { assistant ->
+            bundles.sumOf { calculateAssistantEarned(assistant, it) }
+        }
+
+    fun calculateTailorNetAfterAssistants(shopId: Long, bundles: List<MonthBundle>): Int {
+        val gross = bundles.sumOf { bundle ->
+            val mode = getShops().firstOrNull { it.id == bundle.month.shopId }?.registrationMode
+            if (mode == RegistrationMode.INDIVIDUAL) {
+                getDays(bundle.month.id).sumOf { day ->
+                    calculateIndividualDayEarned(getIndividualEntries(bundle.month.id, day.date))
+                }
+            } else {
+                calculateMonthEarned(bundle)
+            }
+        }
+        val tailorExpenses = bundles.sumOf { calculateMonthExpenses(it) }
+        return gross - calculateTailorAssistantShares(shopId, bundles) - tailorExpenses
+    }
+
+    fun calculateAssistantWithdrawals(assistantId: Long, fromDate: String? = null, toDate: String? = null): Int {
+        val clauses = mutableListOf("assistant_id = ?")
+        val args = mutableListOf(assistantId.toString())
+        if (!fromDate.isNullOrBlank()) { clauses += "date_value >= ?"; args += fromDate }
+        if (!toDate.isNullOrBlank()) { clauses += "date_value <= ?"; args += toDate }
+        return readableDatabase.query("assistant_withdrawals", arrayOf("COALESCE(SUM(amount),0)"), clauses.joinToString(" AND "), args.toTypedArray(), null, null, null).use { c ->
+            if (c.moveToFirst()) c.getInt(0) else 0
         }
     }
 
