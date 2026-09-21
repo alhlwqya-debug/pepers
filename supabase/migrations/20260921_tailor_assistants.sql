@@ -13,6 +13,9 @@ create table if not exists public.assistants (
   worker_record_key text,
   name text not null,
   task text not null default '',
+  phone text not null default '',
+  link_code text not null default '',
+  default_rate integer not null default 0 check(default_rate >= 0),
   start_date text not null,
   end_date text,
   active boolean not null default true,
@@ -106,3 +109,9 @@ create trigger reject_stale_assistants before update on public.assistants for ea
 create trigger reject_stale_assistant_rates before update on public.assistant_piece_rates for each row execute function public.reject_stale_sync_update();
 create trigger reject_stale_assistant_daily before update on public.assistant_daily_records for each row execute function public.reject_stale_sync_update();
 create trigger reject_stale_assistant_withdrawals before update on public.assistant_withdrawals for each row execute function public.reject_stale_sync_update();
+
+-- Account-linking fields added for independent assistant accounts.
+alter table public.assistants add column if not exists phone text not null default '';
+alter table public.assistants add column if not exists link_code text not null default '';
+alter table public.assistants add column if not exists default_rate integer not null default 0 check(default_rate >= 0);
+create unique index if not exists assistants_link_code_idx on public.assistants(link_code) where link_code <> '';
