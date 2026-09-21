@@ -218,3 +218,34 @@ begin
   return jsonb_build_object('status','PENDING','date',p_date,'quantity',d.reported_quantity,'expense',d.expense,'assistant_id',a.id);
 end $f$;
 grant execute on function public.upsert_my_assistant_daily(text,integer,integer,text) to authenticated;
+
+
+create or replace function public.pending_assistant_daily()
+returns jsonb language sql security definer set search_path=public
+as $f$
+select coalesce(jsonb_agg(jsonb_build_object(
+ 'id',d.id,'assistant_id',a.id,'name',a.name,'date',split_part(d.record_key,':',3),
+ 'quantity',d.reported_quantity,'expense',d.expense,'note',d.notes,'status',d.approval_status
+)), '[]'::jsonb)
+from public.assistant_daily_records d
+join public.assistants a on a.id::text=d.assistant_record_key
+where d.user_id=auth.uid() and d.approval_status='PENDING';
+$f$;
+
+create or replace function public.approve_assistant_daily(p_record_id uuid,p_approve boolean,p_quantity integer default null,p_expense integer default null)
+returns jsonb language plpgsql security definer set search_path=public
+as $f$
+declare d public.assistant_daily_records%rowtype;
+begin
+ select * into d from public.assistant_daily_records where id=p_record_id and user_id=auth.uid() for update;
+ if d.id is null then raise exception 'DAILY_RECORD_NOT_FOUND'; end if;
+ update public.assistant_daily_records
+ set approval_status=case when p_approve then 'APPROVED' else 'REJECTED' end,
+     reported_quantity=case when p_approve and p_quantity is not null then greatest(p_quantity,0) else reported_quantity end,
+     expense=case when p_approve and p_expense is not null then greatest(p_expense,0) else expense end,
+     updated_at=now()
+ where id=d.id;
+ return jsonb_build_object('id',d.id,'status',case when p_approve then 'APPROVED' else 'REJECTED' end);
+end $f$;
+grant execute on function public.pending_assistant_daily() to authenticated;
+grant execute on function public.approve_assistant_daily(uuid,boolean,integer,integer) to authenticated;
