@@ -1737,7 +1737,9 @@ SQLiteOpenHelper(
         startDate: String,
         endDate: String?,
         active: Boolean,
-        notes: String
+        notes: String,
+        phone: String = "",
+        defaultRate: Int = 0
     ) {
         val values = ContentValues().apply {
             put("name", name.trim())
@@ -1746,6 +1748,8 @@ SQLiteOpenHelper(
             if (endDate.isNullOrBlank()) putNull("end_date") else put("end_date", endDate.trim())
             put("active", if (active) 1 else 0)
             put("notes", notes.trim())
+            put("phone", phone.trim())
+            put("default_rate", defaultRate.coerceAtLeast(0))
         }
         writableDatabase.update("assistants", values, "id = ?", arrayOf(id.toString()))
     }
