@@ -1,88 +1,92 @@
 package com.add.pepers
 
-import android.widget.Toast
 import android.content.Context
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Calendar
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @Composable
 internal fun AssistantManagerDialog(shop: ShopRecord, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val database = remember { Database(context.applicationContext) }
     var assistants by remember(shop.id) { mutableStateOf(database.getAssistants(shop.id)) }
-    var showEditor by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<AssistantRecord?>(null) }
-    val userPrefs = remember { context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE) }
+    var showEditor by remember { mutableStateOf(false) }
+    val prefs = remember { context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE) }
+
+    fun reload() { assistants = database.getAssistants(shop.id) }
 
     AlertDialog(
-        onDismissRequest = { database.close(); onDismiss() },
+        onDismissRequest = onDismiss,
         title = { Text("مساعدو الخياط") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("المساعد لا يدخل في أي حساب قبل تاريخ بداية عمله. إذا لم يوجد مساعد اترك القائمة فارغة.", fontSize = 11.sp)
+                Text("أضف المساعد مرة واحدة. بعد ذلك يتم تسجيل عمله داخل شاشة التسجيل اليومية نفسها، ولا يحتاج إلى إدخال عدد القطع مرة ثانية.", fontSize = 10.sp)
                 if (assistants.isEmpty()) {
-                    Text("لا يوجد مساعدين لهذا الخياط.", fontSize = 12.sp)
+                    Text("لا يوجد مساعدين لهذا المحل.", fontSize = 12.sp)
                 } else {
-                    LazyColumn(Modifier.fillMaxWidth().height(240.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(assistants, key = { it.id }) { assistant ->
                             Column(Modifier.fillMaxWidth()) {
                                 OutlinedButton(onClick = { selected = assistant; showEditor = true }, modifier = Modifier.fillMaxWidth()) {
-                                    Text(assistant.name + " — " + assistant.task.ifBlank { "مهمة غير محددة" })
+                                    Text("${assistant.name} — ${assistant.task.ifBlank { "مهمة غير محددة" }}")
                                 }
-                                OutlinedButton(onClick = {
-                                    shareAssistantLedgerPdf(
-                                        context = context,
-                                        database = database,
-                                        shop = shop,
-                                        assistant = assistant,
-                                        userName = userPrefs.getString("user_name", "").orEmpty(),
-                                        userPhone = userPrefs.getString("user_phone", "").orEmpty(),
-                                        userEmail = userPrefs.getString("user_email", "").orEmpty()
-                                    )
-                                }, modifier = Modifier.fillMaxWidth()) { Text("كشف PDF وإرسال") }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val message = "مرحباً ${assistant.name}، معرف ربط حسابك في Pepers هو: ${assistant.linkCode}"
+                                            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                                data = Uri.parse("smsto:${Uri.encode(assistant.phone)}")
+                                                putExtra("sms_body", message)
+                                            }
+                                            runCatching { context.startActivity(intent) }.onFailure {
+                                                Toast.makeText(context, "تعذر فتح تطبيق الرسائل", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        enabled = assistant.phone.isNotBlank(),
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text("إرسال المعرف", fontSize = 9.sp) }
+                                    OutlinedButton(
+                                        onClick = {
+                                            shareAssistantLedgerPdf(
+                                                context = context,
+                                                database = database,
+                                                shop = shop,
+                                                assistant = assistant,
+                                                userName = prefs.getString("user_name", "").orEmpty(),
+                                                phone = prefs.getString("user_phone", "").orEmpty(),
+                                                email = prefs.getString("user_email", "").orEmpty()
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text("كشف PDF", fontSize = 9.sp) }
+                                }
+                                Text("المعرف: ${assistant.linkCode}", fontSize = 9.sp, color = Purple)
+                                Text(if (assistant.active) "الحالة: يعمل • ${assistant.defaultRate} ريال/قطعة" else "الحالة: متوقف", fontSize = 9.sp)
                             }
                         }
                     }
                 }
-                Button(onClick = { selected = null; showEditor = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("إضافة مساعد")
-                }
+                Button(onClick = { selected = null; showEditor = true }, modifier = Modifier.fillMaxWidth()) { Text("إضافة مساعد") }
             }
         },
-        confirmButton = { TextButton(onClick = { database.close(); onDismiss() }) { Text("إغلاق") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } }
     )
 
     if (showEditor) {
-        AssistantEditorDialog(
-            shop = shop,
-            assistant = selected,
-            onDismiss = { showEditor = false },
-            onSaved = {
-                assistants = database.getAssistants(shop.id)
-                showEditor = false
-            }
-        )
+        AssistantEditorDialog(shop, selected, { showEditor = false }) { reload(); showEditor = false }
     }
 }
 
@@ -95,114 +99,54 @@ private fun AssistantEditorDialog(
 ) {
     val context = LocalContext.current
     val database = remember { Database(context.applicationContext) }
+    val today = remember { SimpleDateFormat("yyyy/MM/dd", Locale.ENGLISH).format(Calendar.getInstance().time) }
     var name by remember(assistant?.id) { mutableStateOf(assistant?.name.orEmpty()) }
+    var phone by remember(assistant?.id) { mutableStateOf(assistant?.phone.orEmpty()) }
     var task by remember(assistant?.id) { mutableStateOf(assistant?.task.orEmpty()) }
-    var startDate by remember(assistant?.id) { mutableStateOf(assistant?.startDate.orEmpty()) }
+    var rate by remember(assistant?.id) { mutableStateOf(assistant?.defaultRate?.takeIf { it > 0 }?.toString().orEmpty()) }
+    var startDate by remember(assistant?.id) { mutableStateOf(assistant?.startDate ?: today) }
     var endDate by remember(assistant?.id) { mutableStateOf(assistant?.endDate.orEmpty()) }
     var notes by remember(assistant?.id) { mutableStateOf(assistant?.notes.orEmpty()) }
     var active by remember(assistant?.id) { mutableStateOf(assistant?.active ?: true) }
-    var rate by remember { mutableStateOf("") }
-    var rateFrom by remember { mutableStateOf(assistant?.startDate.orEmpty()) }
-    var rateTo by remember { mutableStateOf("") }
-    var ratePieceId by remember { mutableStateOf<Long?>(null) }
-    var dailyDate by remember { mutableStateOf(assistant?.startDate.orEmpty()) }
-    var dailyStatus by remember { mutableStateOf(AssistantDailyStatus.WORKED) }
-    var dailyExpense by remember { mutableStateOf("") }
-    var dailyNote by remember { mutableStateOf("") }
-    var withdrawal by remember { mutableStateOf("") }
-    var withdrawalNote by remember { mutableStateOf("") }
-    val pieces = remember(shop.id) { database.getPieces(shop.id) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (assistant == null) "إضافة مساعد" else "إدارة المساعد") },
+        title = { Text(if (assistant == null) "إضافة مساعد" else "تعديل المساعد") },
         text = {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                item { OutlinedTextField(name, { name = it }, label = { Text("اسم المساعد") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-                item { OutlinedTextField(task, { task = it }, label = { Text("المهمة") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-                item { OutlinedTextField(startDate, { startDate = it }, label = { Text("بداية العمل yyyy/MM/dd") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-                item { OutlinedTextField(endDate, { endDate = it }, label = { Text("نهاية العمل اختياري") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-                item { OutlinedTextField(notes, { notes = it }, label = { Text("ملاحظات") }, modifier = Modifier.fillMaxWidth()) }
-
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text("اسم المساعد") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(phone, { phone = it.filter { ch -> ch.isDigit() || ch == '+' } }, label = { Text("رقم الهاتف") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(task, { task = it }, label = { Text("نوع المهمة") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(rate, { rate = it.filter(Char::isDigit) }, label = { Text("السعر المتفق عليه للقطعة") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(startDate, { startDate = it }, label = { Text("بداية العمل (افتراضي اليوم)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 if (assistant != null) {
-                    item { Spacer(Modifier.height(4.dp)); Text("حصة المساعد لكل قطعة", fontSize = 12.sp) }
-                    item {
-                        Column {
-                            pieces.forEach { piece ->
-                                OutlinedButton(
-                                    onClick = { ratePieceId = piece.id },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) { Text(piece.name + if (ratePieceId == piece.id) " ✓" else "") }
-                            }
-                        }
-                    }
-                    item { OutlinedTextField(rate, { rate = it.filter(Char::isDigit) }, label = { Text("المبلغ للمساعد من القطعة") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-                    item { OutlinedTextField(rateFrom, { rateFrom = it }, label = { Text("ساري من yyyy/MM/dd") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-                    item { OutlinedTextField(rateTo, { rateTo = it }, label = { Text("ساري إلى اختياري") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-                    item {
-                        Button(onClick = {
-                            val pieceId = ratePieceId
-                            val amount = rate.toIntOrNull()
-                            if (pieceId == null || amount == null || rateFrom.isBlank()) {
-                                Toast.makeText(context, "اختر قطعة وسعر وتاريخ بداية", Toast.LENGTH_SHORT).show()
-                            } else {
-                                database.setAssistantPieceRate(assistant.id, pieceId, amount, rateFrom, rateTo.ifBlank { null })
-                                Toast.makeText(context, "تم حفظ حصة القطعة", Toast.LENGTH_SHORT).show()
-                            }
-                        }, modifier = Modifier.fillMaxWidth()) { Text("حفظ سعر القطعة") }
-                    }
-                    item { Text("سجل المساعد اليومي", fontSize = 12.sp) }
-                    item { OutlinedTextField(dailyDate, { dailyDate = it }, label = { Text("التاريخ") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-                    item {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            listOf(
-                                AssistantDailyStatus.WORKED to "يعمل",
-                                AssistantDailyStatus.ABSENT to "غياب",
-                                AssistantDailyStatus.NO_WORK to "لا يوجد عمل"
-                            ).forEach { pair ->
-                                if (dailyStatus == pair.first) Button(onClick = { dailyStatus = pair.first }, modifier = Modifier.weight(1f)) { Text(pair.second, fontSize = 9.sp) }
-                                else OutlinedButton(onClick = { dailyStatus = pair.first }, modifier = Modifier.weight(1f)) { Text(pair.second, fontSize = 9.sp) }
-                            }
-                        }
-                    }
-                    item { OutlinedTextField(dailyExpense, { dailyExpense = it.filter(Char::isDigit) }, label = { Text("مصروف/بدل اليوم") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-                    item { OutlinedTextField(dailyNote, { dailyNote = it }, label = { Text("بيان المصروف والملاحظة") }, modifier = Modifier.fillMaxWidth()) }
-                    item {
-                        Button(onClick = {
-                            val day = database.getDayRecordForAnyMonth(shop.id, dailyDate)
-                            if (day == null) Toast.makeText(context, "لا يوجد سجل يوم لهذا التاريخ", Toast.LENGTH_LONG).show()
-                            else {
-                                database.setAssistantDailyRecord(assistant.id, day.id, dailyStatus, dailyExpense.toIntOrNull() ?: 0, dailyNote, dailyNote)
-                                Toast.makeText(context, "تم حفظ سجل اليوم", Toast.LENGTH_SHORT).show()
-                            }
-                        }, modifier = Modifier.fillMaxWidth()) { Text("حفظ سجل اليوم") }
-                    }
-                    item { Text("السحبيات الخارجية / السلف", fontSize = 12.sp) }
-                    item { OutlinedTextField(withdrawal, { withdrawal = it.filter(Char::isDigit) }, label = { Text("مبلغ السحب") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-                    item { OutlinedTextField(withdrawalNote, { withdrawalNote = it }, label = { Text("بيان السحب") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-                    item {
-                        Button(onClick = {
-                            val amount = withdrawal.toIntOrNull() ?: 0
-                            if (database.addAssistantWithdrawal(assistant.id, dailyDate, amount, withdrawalNote) > 0) {
-                                withdrawal = ""; withdrawalNote = ""
-                                Toast.makeText(context, "تم تسجيل السحب", Toast.LENGTH_SHORT).show()
-                            }
-                        }, modifier = Modifier.fillMaxWidth()) { Text("تسجيل السحب") }
-                    }
+                    OutlinedTextField(endDate, { endDate = it }, label = { Text("تاريخ الإيقاف (اختياري)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    if (active) Button(onClick = { active = false }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("إيقاف حساب المساعد") }
+                    else Button(onClick = { active = true }, modifier = Modifier.fillMaxWidth()) { Text("إعادة تفعيل الحساب") }
+                    Text("الإيقاف يمنع تسجيل أيام جديدة للمساعد، مع بقاء السجل التاريخي.", fontSize = 9.sp)
                 }
+                OutlinedTextField(notes, { notes = it }, label = { Text("ملاحظات اختيارية") }, modifier = Modifier.fillMaxWidth())
+                if (assistant != null) Text("معرف الربط: ${assistant.linkCode}", fontSize = 10.sp, color = Purple)
+                else Text("سيتم إنشاء معرف ربط فريد بعد الحفظ.", fontSize = 9.sp, color = AppMuted)
             }
         },
         confirmButton = {
             Button(onClick = {
+                val cleanName = name.trim()
+                val amount = rate.toIntOrNull() ?: 0
+                if (cleanName.isBlank() || startDate.isBlank() || amount <= 0) {
+                    Toast.makeText(context, "أدخل الاسم وبداية العمل وسعر القطعة", Toast.LENGTH_LONG).show()
+                    return@Button
+                }
                 if (assistant == null) {
-                    val id = database.addAssistant(shop.id, null, name, task, startDate, notes)
-                    if (id > 0) onSaved()
-                    else Toast.makeText(context, "أدخل الاسم وتاريخ بداية العمل", Toast.LENGTH_LONG).show()
+                    val id = database.addAssistant(shop.id, shop.defaultWorkerId, cleanName, task, startDate, notes, phone, amount)
+                    if (id > 0) { Toast.makeText(context, "تم إنشاء المساعد ومعرف الربط", Toast.LENGTH_LONG).show(); onSaved() }
+                    else Toast.makeText(context, "تعذر إنشاء المساعد", Toast.LENGTH_LONG).show()
                 } else {
-                    database.updateAssistant(assistant.id, name, task, startDate, endDate.ifBlank { null }, active, notes)
+                    database.updateAssistant(assistant.id, cleanName, task, startDate, endDate.ifBlank { null }, active, notes, phone, amount)
                     onSaved()
                 }
-            }) { Text(if (assistant == null) "إضافة" else "حفظ") }
+            }) { Text(if (assistant == null) "إنشاء المساعد" else "حفظ التعديل") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
     )
