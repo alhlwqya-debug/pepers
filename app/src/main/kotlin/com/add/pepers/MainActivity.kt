@@ -98,7 +98,7 @@ class MainActivity : FragmentActivity() {
                             showMainApp -> {
                                 val currentSession = authRepository.savedSession()
                                 if (currentSession?.role == "ASSISTANT") AssistantAccountScreen(repository = authRepository)
-                                else WorkLogSheet()
+                                else TailorWorkspace(repository = authRepository)
                             }
                             else -> PasswordAuthApp(
                                 repository = authRepository,
@@ -617,6 +617,59 @@ private fun AssistantAccountScreen(repository: SupabaseAuthRepository) {
             Text("السعر: ${linked.optInt("rate")} ريال/قطعة")
             Spacer(Modifier.height(18.dp))
             Text("تم ربط حسابك بالخياط. سيستخدم الطرفان سجل اليوم نفسه لمنع تكرار العمل أو المصروف.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun TailorWorkspace(repository: SupabaseAuthRepository) {
+    var requests by remember { mutableStateOf(org.json.JSONArray()) }
+    var show by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        while (true) {
+            val raw = repository.pendingAssistantLinks()
+            requests = runCatching { org.json.JSONArray(raw) }.getOrDefault(org.json.JSONArray())
+            show = requests.length() > 0
+            kotlinx.coroutines.delay(10_000)
+        }
+    }
+    Box(Modifier.fillMaxSize()) {
+        WorkLogSheet()
+        if (show) {
+            AlertDialog(
+                onDismissRequest = { show = false },
+                title = { Text("طلب ربط مساعد") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (i in 0 until requests.length()) {
+                            val item = requests.getJSONObject(i)
+                            Text("المساعد: ${item.optString("name")}", fontWeight = FontWeight.Bold)
+                            Text("المهمة: ${item.optString("task").ifBlank { "غير محددة" }}")
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = {
+                                    val id = item.optString("request_id")
+                                    scope.launch {
+                                        if (repository.approveAssistantLink(id, true)) {
+                                            requests = repository.pendingAssistantLinks().let { org.json.JSONArray(it) }
+                                            show = requests.length() > 0
+                                        }
+                                    }
+                                }, modifier = Modifier.weight(1f)) { Text("موافقة") }
+                                OutlinedButton(onClick = {
+                                    val id = item.optString("request_id")
+                                    scope.launch {
+                                        repository.approveAssistantLink(id, false)
+                                        requests = repository.pendingAssistantLinks().let { org.json.JSONArray(it) }
+                                        show = requests.length() > 0
+                                    }
+                                }, modifier = Modifier.weight(1f)) { Text("رفض") }
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { show = false }) { Text("لاحقًا") } }
+            )
         }
     }
 }
