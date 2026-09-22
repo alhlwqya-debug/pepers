@@ -176,6 +176,10 @@ SQLiteOpenHelper(
 ) {
 
     companion object {
+        private val SCHEMA_MIGRATION_LOCK = Any()
+    }
+
+    companion object {
         private const val DATABASE_NAME = "add_paper.db"
         private const val DATABASE_VERSION = 10
 
@@ -664,19 +668,34 @@ SQLiteOpenHelper(
         column: String,
         definition: String
     ) {
-        val cursor = db.rawQuery("PRAGMA table_info($table)", null)
-        var exists = false
-        cursor.use {
-            while (it.moveToNext()) {
-                if (it.getString(1).equals(column, ignoreCase = true)) {
-                    exists = true
-                    break
-                }
+        // SQLite has no portable ADD COLUMN IF NOT EXISTS. Check the schema
+        // first, then protect the check+ALTER pair against concurrent sync/
+        // database initializers in the same app process.
+        synchronized(SCHEMA_MIGRATION_LOCK) {
+            if (columnExists(db, table, column)) return
+
+            try {
+                db.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
+            } catch (error: android.database.sqlite.SQLiteException) {
+                // Another initializer may have added the column between the
+                // PRAGMA check and ALTER TABLE. If it now exists, the desired
+                // migration has completed successfully; otherwise rethrow.
+                if (!columnExists(db, table, column)) throw error
             }
         }
-        if (!exists) {
-            db.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
+    }
+
+    private fun columnExists(
+        db: SQLiteDatabase,
+        table: String,
+        column: String
+    ): Boolean {
+        db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(1).equals(column, ignoreCase = true)) return true
+            }
         }
+        return false
     }
 
     private fun insertWorker(
