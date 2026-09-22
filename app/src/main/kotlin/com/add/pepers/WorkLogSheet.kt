@@ -147,7 +147,7 @@ fun WorkLogSheet() {
     var showUserProfile by remember { mutableStateOf(userName.isBlank() && shops.isNotEmpty()) }
     var showFirstSetup by remember {
         mutableStateOf(
-            shops.isEmpty() && !prefs.getBoolean("first_setup_completed_v1", false)
+            shops.isEmpty() && !prefs.getBoolean(firstSetupKey, false)
         )
     }
     var showStatistics by remember { mutableStateOf(false) }
@@ -604,8 +604,9 @@ fun WorkLogSheet() {
         FirstSetupWizard(
             database = database,
             userName = userName,
+            completionKey = firstSetupKey,
             onFinished = {
-                prefs.edit().putBoolean("first_setup_completed_v1", true).apply()
+                prefs.edit().putBoolean(firstSetupKey, true).apply()
                 showFirstSetup = false
                 refreshAll()
                 selectedShopId?.let { SmartShopMemory.rememberShop(context, it) }
