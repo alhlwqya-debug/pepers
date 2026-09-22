@@ -113,19 +113,46 @@ class MainActivity : FragmentActivity() {
                                     val session = authRepository.savedSession()
                                     if (session != null) {
                                         LocalDatabaseAccountManager.activateUser(applicationContext, session.userId)
-                                        // Restore cloud data before composing the workspace. Otherwise a
-                                        // returning account can briefly see the empty "add shop" screen
-                                        // while its private local database is still being populated.
+
+                                        // Always restore an expired/near-expiry session before the first
+                                        // cloud request. This prevents a newly opened app from trying
+                                        // to sync with a stale access token.
+                                        val restored = runCatching {
+                                            authRepository.restoreSession()
+                                        }.getOrNull()
+                                        val activeSession = when (restored) {
+                                            is AuthResult.SignedIn -> restored.session
+                                            else -> authRepository.savedSession() ?: session
+                                        }
+                                        LocalDatabaseAccountManager.activateUser(applicationContext, activeSession.userId)
+
+                                        // Restore cloud data before composing the workspace. If the first
+                                        // request returns 401, refresh the Supabase token once and retry
+                                        // the complete sync instead of silently abandoning cloud restore.
                                         val syncSession = SupabaseSessionStore.load(applicationContext)
                                         val syncResult = if (syncSession != null) {
-                                            runCatching { SupabaseSyncManager.sync(applicationContext, syncSession) }
+                                            runCatching {
+                                                try {
+                                                    SupabaseSyncManager.sync(applicationContext, syncSession)
+                                                } catch (error: IllegalStateException) {
+                                                    if (error.message?.contains("Supabase 401") == true &&
+                                                        syncSession.refreshToken.isNotBlank()
+                                                    ) {
+                                                        val refreshed = SupabaseAuth.refresh(applicationContext, syncSession)
+                                                        SupabaseSyncManager.sync(applicationContext, refreshed)
+                                                    } else {
+                                                        throw error
+                                                    }
+                                                }
+                                            }
                                         } else {
                                             null
                                         }
-                                        if (syncResult?.isFailure == true) {
+                                        syncResult?.exceptionOrNull()?.let { error ->
+                                            android.util.Log.e("PepersSync", "Cloud sync failed", error)
                                             Toast.makeText(
                                                 this@MainActivity,
-                                                "تعذر استعادة بيانات الحساب من السحابة. سيتم الاحتفاظ بالبيانات المحلية.",
+                                                "تعذر مزامنة بيانات الحساب الآن. سيتم الاحتفاظ بالبيانات المحلية.",
                                                 Toast.LENGTH_LONG
                                             ).show()
                                         }
