@@ -1,5 +1,5 @@
 #v2
-8
+12
 /storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/kotlin/com/add/pepers/WorkLogSheet.kt	0	0	text
 /storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/kotlin/com/add/pepers/PdfRangeUtils.kt	5308	122	text
 /storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/res/drawable/ic_launcher_art.png	0	0	preview
@@ -9,3 +9,7 @@
 /storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/build.gradle.kts	141	0	text
 /storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/res/drawable/ic_launcher_foreground.xml	0	0	preview
 /storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/build/outputs/mapping/release/mapping.txt	0	0	text
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/AndroidManifest.xml	447	17	text
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/res/mipmap/ic_launcher_round.xml	0	0	preview
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/res/drawable-nodpi/ic_launcher_foreground.png	0	0	preview
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml	0	0	text
