@@ -151,6 +151,7 @@ fun WorkLogSheet() {
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showPdfRangeDialog by remember { mutableStateOf(false) }
     var showSecurityDialog by remember { mutableStateOf(false) }
+    var showAssistantManager by remember { mutableStateOf(false) }
     var showSetPinDialog by remember { mutableStateOf(false) }
     var appPinEnabled by remember { mutableStateOf(hasAppPin(context)) }
     var registrationMode by remember(selectedShopId, shops) {
@@ -528,6 +529,13 @@ fun WorkLogSheet() {
     }
 
     // ===== الحوارات =====
+
+    if (showAssistantManager && currentShop != null) {
+        AssistantManagerDialog(
+            shop = currentShop,
+            onDismiss = { showAssistantManager = false }
+        )
+    }
 
     // 1. حوار الملف الشخصي
     if (showUserProfile) {
