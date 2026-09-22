@@ -163,9 +163,52 @@ internal object SupabaseSyncManager {
 }
 
 private object LocalSyncImporter {
+    private fun ensureSyncState(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS sync_records (
+                record_key TEXT PRIMARY KEY,
+                table_name TEXT NOT NULL,
+                local_id INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                content_hash TEXT NOT NULL DEFAULT ''
+            )
+            """.trimIndent()
+        )
+        addSyncColumnIfMissing(db, "updated_at", "INTEGER NOT NULL DEFAULT 0")
+        addSyncColumnIfMissing(db, "content_hash", "TEXT NOT NULL DEFAULT ''")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_sync_records_table_local ON sync_records(table_name, local_id)")
+    }
+
+    private fun addSyncColumnIfMissing(
+        db: SQLiteDatabase,
+        column: String,
+        definition: String
+    ) {
+        synchronized(SYNC_MIGRATION_LOCK) {
+            if (syncColumnExists(db, column)) return
+            try {
+                db.execSQL("ALTER TABLE sync_records ADD COLUMN $column $definition")
+            } catch (error: android.database.sqlite.SQLiteException) {
+                if (!syncColumnExists(db, column)) throw error
+            }
+        }
+    }
+
+    private fun syncColumnExists(db: SQLiteDatabase, column: String): Boolean {
+        db.rawQuery("PRAGMA table_info(sync_records)", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(1).equals(column, ignoreCase = true)) return true
+            }
+        }
+        return false
+    }
+
+    private val SYNC_MIGRATION_LOCK = Any()
+
     fun apply(context: Context, remote: Map<String, JSONArray>, deviceId: String) {
         val db = Database(context).writableDatabase
-        db.execSQL("CREATE TABLE IF NOT EXISTS sync_records (record_key TEXT PRIMARY KEY, table_name TEXT NOT NULL, local_id INTEGER NOT NULL)")
+        ensureSyncState(db)
         val ids = mutableMapOf<String, Long>()
         fun resolve(table: String, recordKey: String, legacyId: Long): Long? {
             ids[recordKey]?.let { return it }
