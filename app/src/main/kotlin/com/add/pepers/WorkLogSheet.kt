@@ -116,7 +116,12 @@ fun WorkLogSheet() {
         )
     }
     var months by remember { mutableStateOf(selectedShopId?.let(database::getMonths) ?: emptyList()) }
-    var selectedMonthId by remember { mutableStateOf(months.firstOrNull()?.id) }
+    val initialMonthId = remember(selectedShopId, months) {
+        selectedShopId?.let { prefs.getLong("last_month_" + it, -1L).takeIf { id -> id > 0L } }
+            ?.takeIf { savedId -> months.any { it.id == savedId } }
+            ?: months.firstOrNull()?.id
+    }
+    var selectedMonthId by remember(selectedShopId) { mutableStateOf(initialMonthId) }
     var bundle by remember { mutableStateOf(selectedMonthId?.let(database::loadMonthBundle)) }
     var pieces by remember { mutableStateOf(selectedShopId?.let(database::getPieces) ?: emptyList()) }
 
@@ -260,7 +265,10 @@ fun WorkLogSheet() {
 
     fun reloadMonths() {
         months = selectedShopId?.let(database::getMonths) ?: emptyList()
-        if (months.none { it.id == selectedMonthId }) selectedMonthId = months.firstOrNull()?.id
+        if (months.none { it.id == selectedMonthId }) {
+            selectedMonthId = months.firstOrNull()?.id
+        }
+        selectedMonthId?.let { id -> prefs.edit().putLong("last_month_" + selectedShopId, id).apply() }
     }
 
     fun reloadBundle() {
@@ -305,7 +313,8 @@ fun WorkLogSheet() {
         pieces = selectedShopId?.let(database::getPieces) ?: emptyList()
     }
 
-    LaunchedEffect(selectedMonthId) {
+    LaunchedEffect(selectedMonthId, selectedShopId) {
+        selectedMonthId?.let { id -> prefs.edit().putLong("last_month_" + selectedShopId, id).apply() }
         bundle = selectedMonthId?.let(database::loadMonthBundle)
     }
 
@@ -400,7 +409,10 @@ fun WorkLogSheet() {
                     shopMenuOpen = false
                     drawerOpen = false
                 },
-                onSelectMonth = { selectedMonthId = it },
+                onSelectMonth = {
+                    selectedMonthId = it
+                    prefs.edit().putLong("last_month_" + selectedShopId, it).apply()
+                },
                 onAddMonth = {
                     newYear = currentBundle.month.year.toString()
                     newMonthNumber = currentBundle.month.month.toString()
