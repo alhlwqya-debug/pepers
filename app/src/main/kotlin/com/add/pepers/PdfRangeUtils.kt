@@ -470,7 +470,7 @@ internal fun printHtmlRange(context: Context, jobName: String, html: String) {
                 } finally {
                     decorView?.postDelayed({
                         try {
-                            decorView?.removeView(webView)
+                            decorView.removeView(webView)
                         } catch (_: Exception) {
                         }
                     }, 700L)
