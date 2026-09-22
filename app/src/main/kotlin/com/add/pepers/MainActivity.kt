@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -58,6 +59,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
@@ -65,6 +67,7 @@ import com.add.pepers.cloud.AuthResult
 import com.add.pepers.cloud.AuthSession
 import com.add.pepers.cloud.SupabaseAuthRepository
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 private val AuthAppBackground = Color(0xFFFFF8FC)
 private val AuthPrimary = Color(0xFF7B2CBF)
@@ -95,7 +98,11 @@ class MainActivity : FragmentActivity() {
                                 onUnlocked = { appLockRequested.value = false },
                                 onUseDeviceLock = { authenticateWithDeviceLock() }
                             )
-                            showMainApp -> WorkLogSheet()
+                            showMainApp -> {
+                                val currentSession = authRepository.savedSession()
+                                if (currentSession?.role == "ASSISTANT") AssistantAccountScreen(repository = authRepository)
+                                else TailorWorkspace(repository = authRepository)
+                            }
                             else -> PasswordAuthApp(
                                 repository = authRepository,
                                 googleResult = googleResult.value,
@@ -106,10 +113,21 @@ class MainActivity : FragmentActivity() {
                                     val session = authRepository.savedSession()
                                     if (session != null) {
                                         LocalDatabaseAccountManager.activateUser(applicationContext, session.userId)
-                                        runCatching {
-                                            SupabaseSessionStore.load(applicationContext)?.let {
-                                                SupabaseSyncManager.sync(applicationContext, it)
-                                            }
+                                        // Restore cloud data before composing the workspace. Otherwise a
+                                        // returning account can briefly see the empty "add shop" screen
+                                        // while its private local database is still being populated.
+                                        val syncSession = SupabaseSessionStore.load(applicationContext)
+                                        val syncResult = if (syncSession != null) {
+                                            runCatching { SupabaseSyncManager.sync(applicationContext, syncSession) }
+                                        } else {
+                                            null
+                                        }
+                                        if (syncResult?.isFailure == true) {
+                                            Toast.makeText(
+                                                this@MainActivity,
+                                                "تعذر استعادة بيانات الحساب من السحابة. سيتم الاحتفاظ بالبيانات المحلية.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
                                         }
                                     }
                                     ensureLocalProfile(session)
@@ -215,6 +233,7 @@ private fun PasswordAuthApp(
     onEnterApp: suspend () -> Unit
 ) {
     var createAccount by rememberSaveable { mutableStateOf(false) }
+    var accountRole by rememberSaveable { mutableStateOf("TAILOR") }
     var name by rememberSaveable { mutableStateOf("") }
     var phone by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
@@ -369,6 +388,16 @@ private fun PasswordAuthApp(
             Spacer(Modifier.height(18.dp))
 
             if (createAccount) {
+                Text("نوع الحساب", fontWeight = FontWeight.SemiBold, color = AuthPrimaryDark, modifier = Modifier.align(Alignment.Start))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (accountRole == "TAILOR") Button(onClick = { accountRole = "TAILOR" }, modifier = Modifier.weight(1f)) { Text("✂️ خياط") }
+                    else OutlinedButton(onClick = { accountRole = "TAILOR" }, modifier = Modifier.weight(1f)) { Text("✂️ خياط") }
+                    if (accountRole == "ASSISTANT") Button(onClick = { accountRole = "ASSISTANT" }, modifier = Modifier.weight(1f)) { Text("👥 مساعد خياط") }
+                    else OutlinedButton(onClick = { accountRole = "ASSISTANT" }, modifier = Modifier.weight(1f)) { Text("👥 مساعد خياط") }
+                }
+                Spacer(Modifier.height(10.dp))
+                if (accountRole == "ASSISTANT") Text("بعد إنشاء الحساب ستدخل معرف الربط الذي أرسله لك الخياط.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it; error = null },
@@ -467,7 +496,7 @@ private fun PasswordAuthApp(
                     loading = true
                     scope.launch {
                         val result = if (createAccount) {
-                            repository.signUpWithPassword(name, phone, email, password)
+                            repository.signUpWithPassword(name, phone, email, password, accountRole)
                         } else {
                             repository.signInWithPassword(email, password)
                         }
@@ -549,3 +578,126 @@ private fun authFieldColors() = androidx.compose.material3.OutlinedTextFieldDefa
     unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     cursorColor = AuthPrimary
 )
+
+@Composable
+private fun AssistantAccountScreen(repository: SupabaseAuthRepository) {
+    val scope = rememberCoroutineScope()
+    var code by rememberSaveable { mutableStateOf("") }
+    var linkedJson by rememberSaveable { mutableStateOf("[]") }
+    var pending by rememberSaveable { mutableStateOf(false) }
+    var message by rememberSaveable { mutableStateOf<String?>(null) }
+    var dailyJson by rememberSaveable { mutableStateOf("[]") }
+    var loading by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        linkedJson = repository.myAssistantLink()
+        dailyJson = repository.myAssistantDaily()
+    }
+    val linked = remember(linkedJson) {
+        runCatching {
+            val arr = org.json.JSONArray(linkedJson)
+            if (arr.length() == 0) null else arr.getJSONObject(0)
+        }.getOrNull()
+    }
+    if (linked == null) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.height(35.dp))
+            Text("👥 حساب مساعد الخياط", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = AuthPrimaryDark)
+            Spacer(Modifier.height(8.dp))
+            Text("اربط حسابك بحساب الخياط باستخدام المعرف الذي أرسله لك.")
+            Spacer(Modifier.height(22.dp))
+            OutlinedTextField(code, { code = it.uppercase(Locale.ROOT); message = null }, label = { Text("معرف الربط") }, placeholder = { Text("AST-XXXXXXXXXX") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+            Spacer(Modifier.height(12.dp))
+            Button(enabled = code.isNotBlank() && !loading && !pending, onClick = {
+                loading = true
+                scope.launch {
+                    when (val result = repository.requestAssistantLink(code)) {
+                        is AuthResult.SignedIn -> { pending = true; message = "تم إرسال طلب الربط. بانتظار موافقة الخياط." }
+                        is AuthResult.Failure -> message = result.message
+                    }
+                    loading = false
+                }
+            }, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text(if (loading) "جارٍ الإرسال…" else "طلب الربط") }
+            if (pending) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = { scope.launch {
+                    val current = repository.myAssistantLink()
+                    if (current != "[]") { linkedJson = current; pending = false; message = "تم قبول الربط." }
+                    else message = "لم تتم الموافقة بعد."
+                } }, modifier = Modifier.fillMaxWidth()) { Text("تحقق من موافقة الخياط") }
+            }
+            message?.let { Spacer(Modifier.height(12.dp)); Text(it, color = AuthPrimaryDark) }
+        }
+    } else {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp)) {
+            Text("مرحبًا ${linked.optString("name")}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = AuthPrimaryDark)
+            Spacer(Modifier.height(6.dp))
+            Text("المهمة: ${linked.optString("task").ifBlank { "غير محددة" }}")
+            Text("السعر: ${linked.optInt("rate")} ريال/قطعة")
+            Spacer(Modifier.height(18.dp))
+            Text("تم ربط حسابك بالخياط. سيستخدم الطرفان سجل اليوم نفسه لمنع تكرار العمل أو المصروف.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(18.dp))
+            AssistantDailyWorkForm(repository)
+            Spacer(Modifier.height(20.dp))
+            Text("السجلات المعتمدة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = AuthPrimaryDark)
+            val daily = runCatching { org.json.JSONArray(dailyJson) }.getOrDefault(org.json.JSONArray())
+            if (daily.length() == 0) Text("لا توجد سجلات معتمدة بعد.", fontSize = 11.sp)
+            else for (i in 0 until minOf(daily.length(), 20)) {
+                val d = daily.getJSONObject(i)
+                Text("• ${d.optString("date")} — ${d.optInt("quantity")} قطع — مصروف ${d.optInt("expense")}", fontSize = 11.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TailorWorkspace(repository: SupabaseAuthRepository) {
+    var requests by remember { mutableStateOf(org.json.JSONArray()) }
+    var dailyRequests by remember { mutableStateOf(org.json.JSONArray()) }
+    var show by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    fun refresh() {
+        scope.launch {
+            requests = runCatching { org.json.JSONArray(repository.pendingAssistantLinks()) }.getOrDefault(org.json.JSONArray())
+            dailyRequests = runCatching { org.json.JSONArray(repository.pendingAssistantDaily()) }.getOrDefault(org.json.JSONArray())
+            show = requests.length() > 0 || dailyRequests.length() > 0
+        }
+    }
+    LaunchedEffect(Unit) {
+        while (true) { refresh(); kotlinx.coroutines.delay(10_000) }
+    }
+    Box(Modifier.fillMaxSize()) {
+        WorkLogSheet()
+        if (show) {
+            AlertDialog(
+                onDismissRequest = { show = false },
+                title = { Text("طلبات المساعدين") },
+                text = {
+                    Column(Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        for (i in 0 until requests.length()) {
+                            val item = requests.getJSONObject(i)
+                            Text("طلب ربط: ${item.optString("name")}", fontWeight = FontWeight.Bold)
+                            Text("المهمة: ${item.optString("task").ifBlank { "غير محددة" }}")
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { scope.launch { repository.approveAssistantLink(item.optString("request_id"), true); refresh() } }, modifier = Modifier.weight(1f)) { Text("موافقة") }
+                                OutlinedButton(onClick = { scope.launch { repository.approveAssistantLink(item.optString("request_id"), false); refresh() } }, modifier = Modifier.weight(1f)) { Text("رفض") }
+                            }
+                        }
+                        for (i in 0 until dailyRequests.length()) {
+                            val item = dailyRequests.getJSONObject(i)
+                            Text("تسجيل عمل: ${item.optString("name")}", fontWeight = FontWeight.Bold)
+                            Text("التاريخ: ${item.optString("date")} • القطع: ${item.optInt("quantity")} • المصروف: ${item.optInt("expense")}")
+                            if (item.optString("note").isNotBlank()) Text("ملاحظة: ${item.optString("note")}", fontSize = 10.sp)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { scope.launch { repository.approveAssistantDaily(item.optString("id"), true); refresh() } }, modifier = Modifier.weight(1f)) { Text("تأكيد") }
+                                OutlinedButton(onClick = { scope.launch { repository.approveAssistantDaily(item.optString("id"), false); refresh() } }, modifier = Modifier.weight(1f)) { Text("رفض") }
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { show = false }) { Text("لاحقًا") } }
+            )
+        }
+    }
+}
+
+

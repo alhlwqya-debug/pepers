@@ -18,7 +18,8 @@ data class AuthSession(
     val refreshToken: String,
     val userId: String,
     val label: String,
-    val expiresAt: Long = 0L
+    val expiresAt: Long = 0L,
+    val role: String = "TAILOR"
 )
 
 sealed class AuthResult {
@@ -30,7 +31,7 @@ sealed class AuthResult {
 class SupabaseAuthRepository(private val context: Context) {
     private val preferences = context.getSharedPreferences("supabase_session", Context.MODE_PRIVATE)
 
-    suspend fun signUpWithPassword(name: String, phone: String, email: String, password: String): AuthResult =
+    suspend fun signUpWithPassword(name: String, phone: String, email: String, password: String, role: String = "TAILOR"): AuthResult =
         withContext(Dispatchers.IO) {
             val normalizedName = name.trim().replace(Regex("\\s+"), " ")
             val normalizedPhone = phone.trim().replace(" ", "")
@@ -45,6 +46,7 @@ class SupabaseAuthRepository(private val context: Context) {
                     put("full_name", normalizedName)
                     put("name", normalizedName)
                     put("phone", normalizedPhone)
+                    put("role", role.uppercase(Locale.ROOT))
                 })
             }
             try {
@@ -52,7 +54,7 @@ class SupabaseAuthRepository(private val context: Context) {
                 if (response.code !in 200..299) {
                     return@withContext AuthResult.Failure(authError(response.body, response.code, true))
                 }
-                val session = sessionFromResponse(response.body, normalizedEmail)
+                val session = sessionFromResponse(response.body, normalizedEmail, role)
                     ?: return@withContext AuthResult.Failure(context.getString(R.string.error_email_confirmation_disabled))
                 saveSession(session)
                 saveProfile(normalizedName, normalizedPhone, normalizedEmail)
@@ -163,8 +165,18 @@ class SupabaseAuthRepository(private val context: Context) {
                 ?: metadata?.optString("name")?.takeIf { it.isNotBlank() }
                 ?: email.substringBefore('@')
             val phone = metadata?.optString("phone").orEmpty()
+            val role = metadata?.optString("role")?.uppercase(Locale.ROOT)
+                ?.takeIf { it == "ASSISTANT" || it == "TAILOR" }
+                ?: "TAILOR"
             val expiresIn = params["expires_in"]?.toLongOrNull() ?: 3600L
-            val session = AuthSession(accessToken, refreshToken, userId, email, System.currentTimeMillis() + expiresIn * 1000L)
+            val session = AuthSession(
+                accessToken = accessToken,
+                refreshToken = refreshToken,
+                userId = userId,
+                label = email,
+                expiresAt = System.currentTimeMillis() + expiresIn * 1000L,
+                role = role
+            )
             saveSession(session)
             saveProfile(name, phone, email)
             AuthResult.SignedIn(session)
@@ -219,13 +231,83 @@ class SupabaseAuthRepository(private val context: Context) {
         return HttpResponse(code, body)
     }
 
-    private fun sessionFromResponse(body: String, label: String): AuthSession? {
+    private fun sessionFromResponse(body: String, label: String, role: String = "TAILOR"): AuthSession? {
         val json = JSONObject(body)
         val accessToken = json.optString("access_token")
         val refreshToken = json.optString("refresh_token")
         val userId = json.optJSONObject("user")?.optString("id").orEmpty()
         if (accessToken.isBlank() || userId.isBlank()) return null
-        return AuthSession(accessToken, refreshToken, userId, label, System.currentTimeMillis() + json.optLong("expires_in", 3600L) * 1000L)
+        val userRole = json.optJSONObject("user")?.optJSONObject("user_metadata")?.optString("role")?.uppercase(Locale.ROOT)?.takeIf { it == "ASSISTANT" || it == "TAILOR" } ?: role.uppercase(Locale.ROOT)
+        return AuthSession(accessToken, refreshToken, userId, label, System.currentTimeMillis() + json.optLong("expires_in", 3600L) * 1000L, userRole)
+    }
+
+    suspend fun requestAssistantLink(code: String): AuthResult = withContext(Dispatchers.IO) {
+        val session = savedSession() ?: return@withContext AuthResult.Failure("سجّل الدخول أولاً.")
+        try {
+            val response = postRpc("request_assistant_link", JSONObject().put("p_link_code", code.trim()), session.accessToken)
+            if (response.code !in 200..299) AuthResult.Failure("معرف الربط غير صحيح أو غير نشط.")
+            else AuthResult.SignedIn(session)
+        } catch (_: Exception) { AuthResult.Failure(context.getString(R.string.error_network)) }
+    }
+
+    suspend fun pendingAssistantLinks(): String = withContext(Dispatchers.IO) {
+        val session = savedSession() ?: return@withContext "[]"
+        runCatching { postRpc("pending_assistant_links", JSONObject(), session.accessToken).body }.getOrDefault("[]")
+    }
+
+    suspend fun approveAssistantLink(requestId: String, approve: Boolean): Boolean = withContext(Dispatchers.IO) {
+        val session = savedSession() ?: return@withContext false
+        runCatching { postRpc("approve_assistant_link", JSONObject().put("p_request_id", requestId).put("p_approve", approve), session.accessToken).code in 200..299 }.getOrDefault(false)
+    }
+
+    suspend fun saveAssistantDailyWork(date: String, quantity: Int, expense: Int, note: String): AuthResult = withContext(Dispatchers.IO) {
+        val session = savedSession() ?: return@withContext AuthResult.Failure("سجّل الدخول أولاً.")
+        runCatching {
+            val response = postRpc("upsert_my_assistant_daily", JSONObject()
+                .put("p_date", date).put("p_quantity", quantity.coerceAtLeast(0))
+                .put("p_expense", expense.coerceAtLeast(0)).put("p_note", note), session.accessToken)
+            if (response.code in 200..299) AuthResult.SignedIn(session)
+            else AuthResult.Failure("تعذر حفظ سجل العمل المشترك.")
+        }.getOrElse { AuthResult.Failure(context.getString(R.string.error_network)) }
+    }
+
+    suspend fun myAssistantDaily(): String = withContext(Dispatchers.IO) {
+        val session = savedSession() ?: return@withContext "[]"
+        runCatching { postRpc("my_assistant_daily", JSONObject(), session.accessToken).body }.getOrDefault("[]")
+    }
+
+    suspend fun pendingAssistantDaily(): String = withContext(Dispatchers.IO) {
+        val session = savedSession() ?: return@withContext "[]"
+        runCatching { postRpc("pending_assistant_daily", JSONObject(), session.accessToken).body }.getOrDefault("[]")
+    }
+
+    suspend fun approveAssistantDaily(id: String, approve: Boolean, quantity: Int? = null, expense: Int? = null): Boolean = withContext(Dispatchers.IO) {
+        val session = savedSession() ?: return@withContext false
+        runCatching {
+            val body = JSONObject().put("p_record_id", id).put("p_approve", approve)
+            if (quantity != null) body.put("p_quantity", quantity)
+            if (expense != null) body.put("p_expense", expense)
+            postRpc("approve_assistant_daily", body, session.accessToken).code in 200..299
+        }.getOrDefault(false)
+    }
+
+    suspend fun myAssistantLink(): String = withContext(Dispatchers.IO) {
+        val session = savedSession() ?: return@withContext "[]"
+        runCatching { postRpc("my_assistant_link", JSONObject(), session.accessToken).body }.getOrDefault("[]")
+    }
+
+    private fun postRpc(name: String, body: JSONObject, accessToken: String): HttpResponse {
+        val connection = (URL("${SupabaseConfig.url}/rest/v1/rpc/$name").openConnection() as HttpURLConnection)
+        connection.requestMethod = "POST"; connection.connectTimeout = 15_000; connection.readTimeout = 15_000; connection.doOutput = true
+        connection.setRequestProperty("apikey", SupabaseConfig.publishableKey)
+        connection.setRequestProperty("Authorization", "Bearer $accessToken")
+        connection.setRequestProperty("Content-Type", "application/json"); connection.setRequestProperty("Accept", "application/json")
+        connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+        val code = connection.responseCode
+        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+        val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        connection.disconnect()
+        return HttpResponse(code, responseBody)
     }
 
     private fun saveSession(session: AuthSession) {
@@ -235,6 +317,7 @@ class SupabaseAuthRepository(private val context: Context) {
             .putString("refresh_token", session.refreshToken)
             .putString("user_id", session.userId)
             .putString("label", session.label)
+            .putString("role", session.role)
             .putLong("expires_at", session.expiresAt)
             .apply()
     }
@@ -247,7 +330,8 @@ class SupabaseAuthRepository(private val context: Context) {
             preferences.getString("refresh_token", "").orEmpty(),
             userId,
             preferences.getString("label", "").orEmpty(),
-            preferences.getLong("expires_at", 0L)
+            preferences.getLong("expires_at", 0L),
+            preferences.getString("role", "TAILOR").orEmpty()
         )
     }
 

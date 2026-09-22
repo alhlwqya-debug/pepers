@@ -364,6 +364,18 @@ internal fun IndividualLedger(
             }
         }
 
+        val assistantDay = bundle.days.firstOrNull { it.date == selectedDate }
+        if (selectedShopId != null && assistantDay != null) {
+            AssistantDailySection(
+                database = database,
+                shopId = selectedShopId,
+                bundle = bundle,
+                day = assistantDay,
+                pieces = pieces
+            )
+            Spacer(Modifier.height(4.dp))
+        }
+
         Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth().border(1.dp, AppBorder, RoundedCornerShape(9.dp)).background(Color.White, RoundedCornerShape(9.dp)).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
