@@ -520,6 +520,14 @@ fun WorkLogSheet() {
                     drawerOpen = false
                     showRegistrationSettings = true
                 },
+                onAssistants = {
+                    drawerOpen = false
+                    if (selectedShopId != null) {
+                        showAssistantManager = true
+                    } else {
+                        Toast.makeText(context, "اختر محلاً أولاً", Toast.LENGTH_SHORT).show()
+                    }
+                },
                 onDeleteShop = {
                     drawerOpen = false
                     if (selectedShopId != null) showDeleteShopDialog = true
