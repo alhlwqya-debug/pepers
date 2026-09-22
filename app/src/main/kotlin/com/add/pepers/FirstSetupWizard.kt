@@ -70,7 +70,7 @@ fun FirstSetupWizard(
                     OutlinedButton(onClick = { mode = RegistrationMode.NUMERIC }, modifier = Modifier.weight(1f)) { Text(if (mode == RegistrationMode.NUMERIC) "✓ عددي" else "عددي") }
                     OutlinedButton(onClick = { mode = RegistrationMode.INDIVIDUAL }, modifier = Modifier.weight(1f)) { Text(if (mode == RegistrationMode.INDIVIDUAL) "✓ فردي" else "فردي") }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(8f))) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(year, { year = it.filter(Char::isDigit) }, singleLine = true, label = { Text("السنة") }, modifier = Modifier.weight(1f))
                     OutlinedTextField(month, { month = it.filter(Char::isDigit) }, singleLine = true, label = { Text("الشهر 1-12") }, modifier = Modifier.weight(1f))
                 }
