@@ -24,6 +24,7 @@ internal fun AssistantManagerDialog(shop: ShopRecord, onDismiss: () -> Unit) {
     var assistants by remember(shop.id) { mutableStateOf(database.getAssistants(shop.id)) }
     var selected by remember { mutableStateOf<AssistantRecord?>(null) }
     var showEditor by remember { mutableStateOf(false) }
+    var showWithdrawals by remember { mutableStateOf<AssistantRecord?>(null) }
     val prefs = remember { context.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE) }
 
     fun reload() { assistants = database.getAssistants(shop.id) }
@@ -59,6 +60,10 @@ internal fun AssistantManagerDialog(shop: ShopRecord, onDismiss: () -> Unit) {
                                         modifier = Modifier.weight(1f)
                                     ) { Text("إرسال المعرف", fontSize = 9.sp) }
                                     OutlinedButton(
+                                        onClick = { showWithdrawals = assistant },
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text("السحبيات", fontSize = 9.sp) }
+                                    OutlinedButton(
                                         onClick = {
                                             shareAssistantLedgerPdf(
                                                 context = context,
@@ -88,6 +93,74 @@ internal fun AssistantManagerDialog(shop: ShopRecord, onDismiss: () -> Unit) {
     if (showEditor) {
         AssistantEditorDialog(shop, selected, { showEditor = false }) { reload(); showEditor = false }
     }
+
+    if (showWithdrawals != null) {
+        AssistantWithdrawalsDialog(
+            database = database,
+            assistant = showWithdrawals!!,
+            onDismiss = { showWithdrawals = null }
+        )
+    }
+}
+
+@Composable
+private fun AssistantWithdrawalsDialog(
+    database: Database,
+    assistant: AssistantRecord,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var refresh by remember(assistant.id) { mutableStateOf(0) }
+    var date by remember(assistant.id) { mutableStateOf(SimpleDateFormat("yyyy/MM/dd", Locale.ENGLISH).format(Calendar.getInstance().time)) }
+    var amount by remember(assistant.id) { mutableStateOf("") }
+    var note by remember(assistant.id) { mutableStateOf("") }
+    val withdrawals = remember(assistant.id, refresh) { database.getAssistantWithdrawals(assistant.id) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("سحبيات ${assistant.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("إجمالي السحبيات: ${withdrawals.sumOf { it.amount }} ريال", fontSize = 11.sp, color = Red)
+                OutlinedTextField(date, { date = it }, label = { Text("التاريخ") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(amount, { amount = it.filter(Char::isDigit) }, label = { Text("المبلغ") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(note, { note = it }, label = { Text("ملاحظة") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Button(
+                    onClick = {
+                        val value = amount.toIntOrNull() ?: 0
+                        if (value <= 0 || date.isBlank()) {
+                            Toast.makeText(context, "أدخل التاريخ والمبلغ", Toast.LENGTH_SHORT).show()
+                        } else {
+                            val id = database.addAssistantWithdrawal(assistant.id, date.trim(), value, note.trim())
+                            if (id > 0) {
+                                amount = ""
+                                note = ""
+                                refresh++
+                                Toast.makeText(context, "تم حفظ السحبية", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "تعذر حفظ السحبية", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Red)
+                ) { Text("إضافة سحبية") }
+                if (withdrawals.isEmpty()) {
+                    Text("لا توجد سحبيات مسجلة.", fontSize = 10.sp, color = AppMuted)
+                } else {
+                    LazyColumn(
+                        Modifier.fillMaxWidth().heightIn(max = 220.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(withdrawals, key = { it.id }) { item ->
+                            Text("${item.date} — ${item.amount} ريال${if (item.note.isBlank()) "" else " — ${item.note}"}", fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } }
+    )
 }
 
 @Composable
