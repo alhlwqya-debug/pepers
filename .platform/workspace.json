@@ -5,9 +5,15 @@
       "id": "pepers",
       "name": "pepers",
       "root": "",
-      "buildSystem": "native",
+      "buildSystem": "gradle-compat",
       "settings": {},
-      "modules": [],
+      "modules": [
+        {
+          "id": "app",
+          "name": "app",
+          "dir": "app"
+        }
+      ],
       "libraries": []
     }
   ]

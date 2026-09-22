@@ -8,6 +8,7 @@ output = "build/classes"
 
 [sourceSets.debug]
 scope = "IMPLEMENTATION"
+aidl = ["src/debug/aidl"]
 assets = ["src/debug/assets"]
 java = ["src/debug/java", "src/debug/kotlin"]
 jniLibs = ["src/debug/jniLibs"]
@@ -16,6 +17,7 @@ resources = ["src/debug/resources"]
 
 [sourceSets.main]
 scope = "IMPLEMENTATION"
+aidl = ["src/main/aidl"]
 assets = ["src/main/assets"]
 java = ["src/main/java", "src/main/kotlin"]
 jniLibs = ["src/main/jniLibs"]
@@ -24,6 +26,7 @@ resources = ["src/main/resources"]
 
 [sourceSets.release]
 scope = "IMPLEMENTATION"
+aidl = ["src/release/aidl"]
 assets = ["src/release/assets"]
 java = ["src/release/java", "src/release/kotlin"]
 jniLibs = ["src/release/jniLibs"]
@@ -31,7 +34,7 @@ res = ["src/release/res"]
 resources = ["src/release/resources"]
 
 [dependencies]
-implementation = ["org.jetbrains.kotlin:kotlin-stdlib:2.2.21", "androidx.activity:activity-compose:1.9.3", "androidx.compose.ui:ui:1.7.5", "androidx.compose.foundation:foundation:1.7.5", "androidx.compose.material3:material3:1.3.1", "androidx.compose.material:material-icons-core:1.7.5", "androidx.core:core-ktx:1.12.0", "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3", "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3", "androidx.databinding:viewbinding:8.7.3", "androidx.biometric:biometric:1.1.0", "androidx.work:work-runtime-ktx:2.10.1", "androidx.fragment:fragment-ktx:1.8.5", "kotlin-stdlib"]
+implementation = ["org.jetbrains.kotlin:kotlin-stdlib:2.2.21", "androidx.activity:activity-compose:1.9.3", "androidx.compose.ui:ui:1.7.5", "androidx.compose.foundation:foundation:1.7.5", "androidx.compose.material3:material3:1.3.1", "androidx.compose.material:material-icons-core:1.7.5", "androidx.compose.material:material-icons-extended:1.7.5", "androidx.core:core-ktx:1.12.0", "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3", "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3", "androidx.biometric:biometric:1.1.0", "androidx.work:work-runtime-ktx:2.10.1"]
 
 [android]
 namespace = "com.add.pepers"
@@ -39,10 +42,9 @@ compileSdk = 35
 minSdk = 21
 targetSdk = 35
 manifest = "src/main/AndroidManifest.xml"
-versionCode = 2
-versionName = "1.1.0"
+versionCode = 4
+versionName = "1.2.1"
 isApplication = true
 manifestPlaceholders = []
-buildTypes = [{ name = "debug", debuggable = true, minifyEnabled = false, shrinkResources = false, applicationIdSuffix = ".debug", versionNameSuffix = "-debug" }, { name = "release", debuggable = false, minifyEnabled = false, shrinkResources = false, proguardFiles = ["proguard-android-optimize.txt", "proguard-rules.pro"] }]
-viewBinding = true
+buildTypes = [{ name = "debug", debuggable = true, minifyEnabled = false, shrinkResources = false, applicationIdSuffix = ".debug", versionNameSuffix = "-debug" }, { name = "release", debuggable = false, minifyEnabled = true, shrinkResources = true, proguardFiles = ["proguard-android-optimize.txt", "proguard-rules.pro"] }]
 compose = true
