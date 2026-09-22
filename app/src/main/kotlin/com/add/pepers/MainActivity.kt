@@ -277,6 +277,18 @@ private fun PasswordAuthApp(
     var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    // زر الرجوع في شاشة المصادقة يرجع خطوة داخلية أولاً:
+    // إغلاق نافذة استعادة كلمة المرور، ثم الرجوع من إنشاء الحساب إلى تسجيل الدخول.
+    BackHandler(enabled = createAccount || showResetDialog) {
+        if (showResetDialog) {
+            showResetDialog = false
+            resetMessage = null
+        } else {
+            createAccount = false
+            error = null
+        }
+    }
+
 
     LaunchedEffect(Unit) {
         when (val result = repository.restoreSession()) {
