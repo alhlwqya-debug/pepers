@@ -165,8 +165,18 @@ class SupabaseAuthRepository(private val context: Context) {
                 ?: metadata?.optString("name")?.takeIf { it.isNotBlank() }
                 ?: email.substringBefore('@')
             val phone = metadata?.optString("phone").orEmpty()
+            val role = metadata?.optString("role")?.uppercase(Locale.ROOT)
+                ?.takeIf { it == "ASSISTANT" || it == "TAILOR" }
+                ?: "TAILOR"
             val expiresIn = params["expires_in"]?.toLongOrNull() ?: 3600L
-            val session = AuthSession(accessToken, refreshToken, userId, email, System.currentTimeMillis() + expiresIn * 1000L)
+            val session = AuthSession(
+                accessToken = accessToken,
+                refreshToken = refreshToken,
+                userId = userId,
+                label = email,
+                expiresAt = System.currentTimeMillis() + expiresIn * 1000L,
+                role = role
+            )
             saveSession(session)
             saveProfile(name, phone, email)
             AuthResult.SignedIn(session)
