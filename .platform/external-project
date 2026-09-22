@@ -1,0 +1,2 @@
+importer=gradle-compat
+Imported from Gradle. The build files were read statically, not executed, so dependencies and versions are extracted as far as they can be read.
