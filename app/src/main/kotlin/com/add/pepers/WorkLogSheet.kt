@@ -14,6 +14,7 @@ import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -159,6 +160,47 @@ fun WorkLogSheet() {
             selectedShopId?.let { id -> shops.firstOrNull { it.id == id }?.registrationMode }
                 ?: RegistrationMode.NUMERIC
         )
+    }
+
+    // ===== تنقّل النظام: رجوع خطوة واحدة دائمًا =====
+    // يغلق أولاً أعلى طبقة مفتوحة (حوار/قائمة/لوحة)، ثم ينتقل للخلف في
+    // الحالة الحالية بدل الخروج من التطبيق فجأة.
+    val hasOverlay = drawerOpen || shopMenuOpen ||
+        showShopDialog || showMonthDialog || showPieceDialog || showPieceManager ||
+        showExpenseDialog || showUserProfile || showStatistics || showAbout || showHelp ||
+        showRegistrationSettings || showClearDialog || showDeleteMonthDialog ||
+        showDeleteShopDialog || showRenameMonthDialog || showCopyMonthDialog ||
+        showStartDatePicker || showPdfRangeDialog || showSecurityDialog ||
+        showAssistantManager || showSetPinDialog
+
+    BackHandler(enabled = hasOverlay) {
+        when {
+            showSetPinDialog -> showSetPinDialog = false
+            showSecurityDialog -> showSecurityDialog = false
+            showAssistantManager -> showAssistantManager = false
+            showPdfRangeDialog -> showPdfRangeDialog = false
+            showStartDatePicker -> showStartDatePicker = false
+            showCopyMonthDialog -> showCopyMonthDialog = false
+            showRenameMonthDialog -> showRenameMonthDialog = false
+            showDeleteShopDialog -> showDeleteShopDialog = false
+            showDeleteMonthDialog -> showDeleteMonthDialog = false
+            showClearDialog -> showClearDialog = false
+            showRegistrationSettings -> showRegistrationSettings = false
+            showHelp -> showHelp = false
+            showAbout -> showAbout = false
+            showStatistics -> showStatistics = false
+            showExpenseDialog -> {
+                showExpenseDialog = false
+                activeExpenseDay = null
+            }
+            showPieceManager -> showPieceManager = false
+            showPieceDialog -> showPieceDialog = false
+            showMonthDialog -> showMonthDialog = false
+            showShopDialog -> showShopDialog = false
+            showUserProfile -> showUserProfile = false
+            shopMenuOpen -> shopMenuOpen = false
+            drawerOpen -> drawerOpen = false
+        }
     }
 
     // ===== حالة الإدخال =====
