@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">حساب الخياطين</string>
+    <string name="create_account">إنشاء حساب</string>
+    <string name="sign_in">تسجيل الدخول</string>
+    <string name="switch_to_sign_in">لدي حساب بالفعل</string>
+    <string name="auth_subtitle">سجّل الدخول أو أنشئ حسابًا لحفظ بياناتك ومزامنتها بين أجهزتك</string>
+    <string name="password">كلمة المرور</string>
+    <string name="confirm_password">تأكيد كلمة المرور</string>
+    <string name="password_hint">6 أحرف على الأقل</string>
+    <string name="full_name">الاسم</string>
+    <string name="phone_optional">رقم الجوال</string>
+    <string name="error_name_required">أدخل اسمًا صحيحًا (حرفان على الأقل).</string>
+    <string name="error_password_short">يجب أن تتكون كلمة المرور من 6 أحرف على الأقل.</string>
+    <string name="error_password_mismatch">كلمتا المرور غير متطابقتين.</string>
+    <string name="error_invalid_credentials">تعذر تسجيل الدخول. تأكد من البريد وكلمة المرور.</string>
+    <string name="error_email_already_registered">هذا البريد مسجل مسبقًا. اختر تسجيل الدخول.</string>
+    <string name="error_email_confirmation_disabled">تم إنشاء الحساب، لكن لم تُفتح جلسة تلقائية. عطّل خيار تأكيد البريد الإلكتروني (Confirm email) في إعدادات Authentication في Supabase ثم حاول إنشاء الحساب مرة أخرى.</string>
+    <string name="email">البريد الإلكتروني</string>
+    <string name="email_hint">name@example.com</string>
+    <string name="continue_offline">متابعة دون حساب</string>
+    <string name="sign_in_with_google">تسجيل الدخول باستخدام Google</string>
+    <string name="sync_note">🔄 تتم مزامنة بياناتك تلقائيًا عند توفر الإنترنت.</string>
+    <string name="error_google_sign_in">تعذر تسجيل الدخول باستخدام Google. تحقق من إعداد Google في Supabase ثم حاول مرة أخرى.</string>
+    <string name="app_lock_title">فتح حساب الخياطين</string>
+    <string name="app_lock_subtitle">استخدم البصمة أو رمز/نقش قفل الجهاز</string>
+    <string name="offline_title">تعمل دون حساب</string>
+    <string name="offline_body">ستبقى بياناتك على هذا الجهاز ويمكنك استخدامها دون إنترنت. سجّل الدخول لاحقًا إذا أردت مزامنة البيانات بين أجهزتك.</string>
+    <string name="back">رجوع</string>
+    <string name="signed_in_title">تم تسجيل الدخول بنجاح</string>
+    <string name="signed_in_body">حسابك جاهز للمزامنة بين أجهزتك. يمكنك الآن متابعة العمل أو تسجيل الخروج من هذا الجهاز.</string>
+    <string name="sign_out">تسجيل الخروج</string>
+    <string name="error_network">تعذر الاتصال بالإنترنت. تحقق من الشبكة وحاول مرة أخرى.</string>
+    <string name="error_unknown">حدث خطأ غير متوقع. حاول مرة أخرى.</string>
+    <string name="error_email_format">أدخل بريدًا إلكترونيًا صحيحًا.</string>
+    <string name="error_missing_session">تعذر فتح جلسة الحساب. حاول مرة أخرى.</string>
+    <string name="error_auth_with_code">تعذر إكمال المصادقة (%1$d). حاول مرة أخرى.</string>
+    <string name="developer_credit">تطوير المهندس أحمد عبدالودود الدبعي</string>
+</resources>

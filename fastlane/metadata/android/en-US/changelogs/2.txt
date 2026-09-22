@@ -1,0 +1,1 @@
+Initial F-Droid release metadata for Pepers 1.1.0. Includes tailoring-shop accounting, production and expense management, reports and PDF sharing, account login, and synchronization support.
