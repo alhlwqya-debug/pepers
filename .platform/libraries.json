@@ -202,14 +202,6 @@
       ]
     },
     {
-      "name": "kotlin-stdlib",
-      "kind": "JAR",
-      "classes": [
-        ".platform/kotlin-stdlib-2.4.0.jar"
-      ],
-      "sources": []
-    },
-    {
       "name": "org.jetbrains.kotlin:kotlin-stdlib:2.2.21",
       "kind": "JAR",
       "classes": [

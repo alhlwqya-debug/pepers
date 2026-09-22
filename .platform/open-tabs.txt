@@ -1,3 +1,3 @@
 #v2
 0
-/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/kotlin/com/add/pepers/WorkLogSheet.kt	0	0	text
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/kotlin/com/add/pepers/WorkLogSheet.kt	0	80	text
