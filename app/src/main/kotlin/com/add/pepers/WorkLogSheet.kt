@@ -178,9 +178,10 @@ fun WorkLogSheet() {
         )
     }
 
-    // ===== تنقّل النظام: رجوع خطوة واحدة دائمًا =====
-    // يغلق أولاً أعلى طبقة مفتوحة (حوار/قائمة/لوحة)، ثم ينتقل للخلف في
-    // الحالة الحالية بدل الخروج من التطبيق فجأة.
+    // ===== تنقّل ذكي بزر الرجوع =====
+    // الأولوية دائمًا للحالة الأعمق: نغلق الحوار/القائمة/اللوحة الحالية
+    // قبل لمس الشاشة الرئيسية. وعند الوصول إلى الجذر لا نخرج فورًا من التطبيق؛
+    // يلزم ضغط Back ثانٍ خلال ثانيتين لتجنب الخروج العرضي.
     val hasOverlay = showFirstSetup || drawerOpen || shopMenuOpen ||
         showShopDialog || showMonthDialog || showPieceDialog || showPieceManager ||
         showExpenseDialog || showUserProfile || showStatistics || showAbout || showHelp ||
@@ -188,8 +189,9 @@ fun WorkLogSheet() {
         showDeleteShopDialog || showRenameMonthDialog || showCopyMonthDialog ||
         showStartDatePicker || showPdfRangeDialog || showSecurityDialog ||
         showAssistantManager || showSetPinDialog
+    var lastBackPressedAt by remember { mutableStateOf(0L) }
 
-    BackHandler(enabled = hasOverlay) {
+    BackHandler(enabled = true) {
         when {
             showFirstSetup -> Unit
             showSetPinDialog -> showSetPinDialog = false
@@ -217,6 +219,19 @@ fun WorkLogSheet() {
             showUserProfile -> showUserProfile = false
             shopMenuOpen -> shopMenuOpen = false
             drawerOpen -> drawerOpen = false
+            else -> {
+                val now = System.currentTimeMillis()
+                if (now - lastBackPressedAt <= 2000L) {
+                    (context as? android.app.Activity)?.finish()
+                } else {
+                    lastBackPressedAt = now
+                    Toast.makeText(
+                        context,
+                        "اضغط مرة أخرى للخروج من التطبيق",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
         }
     }
 
