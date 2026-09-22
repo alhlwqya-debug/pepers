@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -59,7 +60,7 @@ fun FirstSetupWizard(
         onDismissRequest = { },
         title = { Text("ابدأ إعداد حسابك") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(8f))) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("أنشئ المحل والشهر وأيام العمل. ويمكنك إنشاء أول مساعد وتاريخ بدايته الآن.", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(shopName, { shopName = it; error = null }, singleLine = true, label = { Text("اسم المحل") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(registrationNumber, { registrationNumber = it; error = null }, singleLine = true, label = { Text("رقم المحل / التسجيل") }, modifier = Modifier.fillMaxWidth())
