@@ -30,6 +30,7 @@ import java.util.Locale
 fun FirstSetupWizard(
     database: Database,
     userName: String,
+    completionKey: String,
     onFinished: () -> Unit
 ) {
     val context = LocalContext.current
