@@ -308,7 +308,8 @@ fun WorkLogSheet() {
             shops.firstOrNull { it.id == id }?.registrationMode
         } ?: RegistrationMode.NUMERIC
         months = selectedShopId?.let(database::getMonths) ?: emptyList()
-        selectedMonthId = months.firstOrNull()?.id
+        val savedMonthId = selectedShopId?.let { id -> prefs.getLong("last_month_" + id, -1L).takeIf { it > 0L } }
+        selectedMonthId = savedMonthId?.takeIf { saved -> months.any { it.id == saved } } ?: months.firstOrNull()?.id
         bundle = selectedMonthId?.let(database::loadMonthBundle)
         pieces = selectedShopId?.let(database::getPieces) ?: emptyList()
     }
