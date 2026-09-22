@@ -66,7 +66,7 @@ fun FirstSetupWizard(
                 OutlinedTextField(shopName, { shopName = it; error = null }, singleLine = true, label = { Text("اسم المحل") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(registrationNumber, { registrationNumber = it; error = null }, singleLine = true, label = { Text("رقم المحل / التسجيل") }, modifier = Modifier.fillMaxWidth())
                 Text("نوع التسجيل")
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(8f))) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { mode = RegistrationMode.NUMERIC }, modifier = Modifier.weight(1f)) { Text(if (mode == RegistrationMode.NUMERIC) "✓ عددي" else "عددي") }
                     OutlinedButton(onClick = { mode = RegistrationMode.INDIVIDUAL }, modifier = Modifier.weight(1f)) { Text(if (mode == RegistrationMode.INDIVIDUAL) "✓ فردي" else "فردي") }
                 }
