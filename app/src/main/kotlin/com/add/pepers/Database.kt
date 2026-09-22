@@ -177,9 +177,7 @@ SQLiteOpenHelper(
 
     companion object {
         private val SCHEMA_MIGRATION_LOCK = Any()
-    }
 
-    companion object {
         private const val DATABASE_NAME = "add_paper.db"
         private const val DATABASE_VERSION = 11
 
