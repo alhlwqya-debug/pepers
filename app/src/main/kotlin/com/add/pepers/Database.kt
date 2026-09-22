@@ -1029,7 +1029,8 @@ SQLiteOpenHelper(
         workerName: String,
         startDate: String,
         deductExpense: Boolean,
-        workerId: Long? = null
+        workerId: Long? = null,
+        workingDays: Set<Int>? = null
     ): Long {
         val selectedWorkerId = workerId ?: getDefaultWorkerId(shopId)
         val selectedWorkerName = if (workerName.trim().isNotEmpty()) {
@@ -1051,7 +1052,7 @@ SQLiteOpenHelper(
 
         val monthId = writableDatabase.insert(TABLE_MONTHS, null, values)
         if (monthId > 0L) {
-            generateDaysForMonth(monthId, year, month)
+            generateDaysForMonth(monthId, year, month, startDate, workingDays)
         }
         return monthId
     }
@@ -1195,7 +1196,13 @@ SQLiteOpenHelper(
     }
 
     // ✅ الدالة المصححة - توليد الأيام تلقائياً من اليوم الأول للشهر
-    private fun generateDaysForMonth(monthId: Long, year: Int, month: Int) {
+    private fun generateDaysForMonth(
+        monthId: Long,
+        year: Int,
+        month: Int,
+        startDate: String = "",
+        workingDays: Set<Int>? = null
+    ) {
         val calendar = Calendar.getInstance().apply {
             set(Calendar.YEAR, year)
             set(Calendar.MONTH, month - 1)
@@ -1206,12 +1213,18 @@ SQLiteOpenHelper(
             set(Calendar.MILLISECOND, 0)
         }
 
+        val startMillis = runCatching {
+            SimpleDateFormat("yyyy/MM/dd", Locale.ENGLISH).parse(startDate)?.time
+        }.getOrNull()
+
         val maxDay = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
         val db = writableDatabase
         db.beginTransaction()
         try {
             for (day in 1 .. maxDay) {
                 calendar.set(Calendar.DAY_OF_MONTH, day)
+                if (workingDays != null && calendar.get(Calendar.DAY_OF_WEEK) !in workingDays) continue
+                if (startMillis != null && calendar.timeInMillis < startMillis) continue
                 val values = ContentValues().apply {
                     put(COL_MONTH_ID, monthId)
                     put(COL_DATE, formatDate(calendar))

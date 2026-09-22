@@ -116,7 +116,12 @@ fun WorkLogSheet() {
         )
     }
     var months by remember { mutableStateOf(selectedShopId?.let(database::getMonths) ?: emptyList()) }
-    var selectedMonthId by remember { mutableStateOf(months.firstOrNull()?.id) }
+    val initialMonthId = remember(selectedShopId, months) {
+        selectedShopId?.let { prefs.getLong("last_month_" + it, -1L).takeIf { id -> id > 0L } }
+            ?.takeIf { savedId -> months.any { it.id == savedId } }
+            ?: months.firstOrNull()?.id
+    }
+    var selectedMonthId by remember(selectedShopId) { mutableStateOf(initialMonthId) }
     var bundle by remember { mutableStateOf(selectedMonthId?.let(database::loadMonthBundle)) }
     var pieces by remember { mutableStateOf(selectedShopId?.let(database::getPieces) ?: emptyList()) }
 
@@ -139,7 +144,12 @@ fun WorkLogSheet() {
     var showPieceDialog by remember { mutableStateOf(false) }
     var showPieceManager by remember { mutableStateOf(false) } // ✅ جديد
     var showExpenseDialog by remember { mutableStateOf(false) }
-    var showUserProfile by remember { mutableStateOf(userName.isBlank()) }
+    var showUserProfile by remember { mutableStateOf(userName.isBlank() && shops.isNotEmpty()) }
+    var showFirstSetup by remember {
+        mutableStateOf(
+            shops.isEmpty() && !prefs.getBoolean(firstSetupKey, false)
+        )
+    }
     var showStatistics by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
@@ -165,7 +175,7 @@ fun WorkLogSheet() {
     // ===== تنقّل النظام: رجوع خطوة واحدة دائمًا =====
     // يغلق أولاً أعلى طبقة مفتوحة (حوار/قائمة/لوحة)، ثم ينتقل للخلف في
     // الحالة الحالية بدل الخروج من التطبيق فجأة.
-    val hasOverlay = drawerOpen || shopMenuOpen ||
+    val hasOverlay = showFirstSetup || drawerOpen || shopMenuOpen ||
         showShopDialog || showMonthDialog || showPieceDialog || showPieceManager ||
         showExpenseDialog || showUserProfile || showStatistics || showAbout || showHelp ||
         showRegistrationSettings || showClearDialog || showDeleteMonthDialog ||
@@ -175,6 +185,7 @@ fun WorkLogSheet() {
 
     BackHandler(enabled = hasOverlay) {
         when {
+            showFirstSetup -> Unit
             showSetPinDialog -> showSetPinDialog = false
             showSecurityDialog -> showSecurityDialog = false
             showAssistantManager -> showAssistantManager = false
@@ -254,7 +265,10 @@ fun WorkLogSheet() {
 
     fun reloadMonths() {
         months = selectedShopId?.let(database::getMonths) ?: emptyList()
-        if (months.none { it.id == selectedMonthId }) selectedMonthId = months.firstOrNull()?.id
+        if (months.none { it.id == selectedMonthId }) {
+            selectedMonthId = months.firstOrNull()?.id
+        }
+        selectedMonthId?.let { id -> prefs.edit().putLong("last_month_" + selectedShopId, id).apply() }
     }
 
     fun reloadBundle() {
@@ -294,12 +308,14 @@ fun WorkLogSheet() {
             shops.firstOrNull { it.id == id }?.registrationMode
         } ?: RegistrationMode.NUMERIC
         months = selectedShopId?.let(database::getMonths) ?: emptyList()
-        selectedMonthId = months.firstOrNull()?.id
+        val savedMonthId = selectedShopId?.let { id -> prefs.getLong("last_month_" + id, -1L).takeIf { it > 0L } }
+        selectedMonthId = savedMonthId?.takeIf { saved -> months.any { it.id == saved } } ?: months.firstOrNull()?.id
         bundle = selectedMonthId?.let(database::loadMonthBundle)
         pieces = selectedShopId?.let(database::getPieces) ?: emptyList()
     }
 
-    LaunchedEffect(selectedMonthId) {
+    LaunchedEffect(selectedMonthId, selectedShopId) {
+        selectedMonthId?.let { id -> prefs.edit().putLong("last_month_" + selectedShopId, id).apply() }
         bundle = selectedMonthId?.let(database::loadMonthBundle)
     }
 
@@ -335,9 +351,9 @@ fun WorkLogSheet() {
             prefs.edit().putBoolean("shop_modes_migrated_v4", true).remove("registration_mode").apply()
             refreshAll()
         }
-        if (userName.isBlank()) {
+        if (!showFirstSetup && userName.isBlank()) {
             showUserProfile = true
-        } else if (!prefs.getBoolean("onboarding_completed_v1", false)) {
+        } else if (!showFirstSetup && !prefs.getBoolean("onboarding_completed_v1", false)) {
             showHelp = true
         }
         database.optimizeDatabase()
@@ -394,7 +410,10 @@ fun WorkLogSheet() {
                     shopMenuOpen = false
                     drawerOpen = false
                 },
-                onSelectMonth = { selectedMonthId = it },
+                onSelectMonth = {
+                    selectedMonthId = it
+                    prefs.edit().putLong("last_month_" + selectedShopId, it).apply()
+                },
                 onAddMonth = {
                     newYear = currentBundle.month.year.toString()
                     newMonthNumber = currentBundle.month.month.toString()
@@ -579,6 +598,25 @@ fun WorkLogSheet() {
     }
 
     // ===== الحوارات =====
+
+    // إعداد الحساب الجديد: محل + شهر + أيام العمل + مساعد اختياري.
+    // بعد إكماله لا يظهر مرة أخرى لهذا الحساب.
+    if (showFirstSetup) {
+        FirstSetupWizard(
+            database = database,
+            userName = userName,
+            completionKey = firstSetupKey,
+            onFinished = {
+                prefs.edit().putBoolean(firstSetupKey, true).apply()
+                showFirstSetup = false
+                refreshAll()
+                selectedShopId?.let { SmartShopMemory.rememberShop(context, it) }
+                selectedMonthId = months.firstOrNull()?.id
+                bundle = selectedMonthId?.let(database::loadMonthBundle)
+                Toast.makeText(context, "تم إعداد المحل والشهر وأيام العمل. يمكنك البدء الآن.", Toast.LENGTH_LONG).show()
+            }
+        )
+    }
 
     if (showAssistantManager && currentShop != null) {
         AssistantManagerDialog(
