@@ -170,7 +170,7 @@ fun WorkLogSheet() {
     // ===== تنقّل النظام: رجوع خطوة واحدة دائمًا =====
     // يغلق أولاً أعلى طبقة مفتوحة (حوار/قائمة/لوحة)، ثم ينتقل للخلف في
     // الحالة الحالية بدل الخروج من التطبيق فجأة.
-    val hasOverlay = drawerOpen || shopMenuOpen ||
+    val hasOverlay = showFirstSetup || drawerOpen || shopMenuOpen ||
         showShopDialog || showMonthDialog || showPieceDialog || showPieceManager ||
         showExpenseDialog || showUserProfile || showStatistics || showAbout || showHelp ||
         showRegistrationSettings || showClearDialog || showDeleteMonthDialog ||
@@ -180,6 +180,7 @@ fun WorkLogSheet() {
 
     BackHandler(enabled = hasOverlay) {
         when {
+            showFirstSetup -> Unit
             showSetPinDialog -> showSetPinDialog = false
             showSecurityDialog -> showSecurityDialog = false
             showAssistantManager -> showAssistantManager = false
