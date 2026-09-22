@@ -604,13 +604,36 @@ private object LocalSyncSnapshot {
     }
 
     private fun ensureSyncState(db: SQLiteDatabase) {
+        // CREATE TABLE IF NOT EXISTS already creates the current schema for
+        // new installs. For existing installs, add only columns that are
+        // actually missing; never execute a blind ALTER TABLE because SQLite
+        // reports "duplicate column name" even when the migration is harmless.
         db.execSQL(
             "CREATE TABLE IF NOT EXISTS sync_records (" +
                 "record_key TEXT PRIMARY KEY, table_name TEXT NOT NULL, local_id INTEGER NOT NULL," +
                 "updated_at INTEGER NOT NULL DEFAULT 0, content_hash TEXT NOT NULL DEFAULT '')"
         )
-        runCatching { db.execSQL("ALTER TABLE sync_records ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0") }
-        runCatching { db.execSQL("ALTER TABLE sync_records ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''") }
+        addSyncColumnIfMissing(db, "updated_at", "INTEGER NOT NULL DEFAULT 0")
+        addSyncColumnIfMissing(db, "content_hash", "TEXT NOT NULL DEFAULT ''")
+    }
+
+    private fun addSyncColumnIfMissing(
+        db: SQLiteDatabase,
+        column: String,
+        definition: String
+    ) {
+        var exists = false
+        db.rawQuery("PRAGMA table_info(sync_records)", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(1).equals(column, ignoreCase = true)) {
+                    exists = true
+                    break
+                }
+            }
+        }
+        if (!exists) {
+            db.execSQL("ALTER TABLE sync_records ADD COLUMN $column $definition")
+        }
     }
 
     private fun stamp(

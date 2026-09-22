@@ -177,7 +177,7 @@ SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "add_paper.db"
-        private const val DATABASE_VERSION = 9
+        private const val DATABASE_VERSION = 10
 
         private const val TABLE_SHOPS = "shops"
         private const val TABLE_WORKERS = "workers"
@@ -514,19 +514,36 @@ SQLiteOpenHelper(
             addColumnIfMissing(db, "assistant_daily_records", "approval_status", "TEXT NOT NULL DEFAULT 'APPROVED'")
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_assistants_link_code ON assistants(link_code) WHERE link_code <> ''")
         }
+        if (oldVersion < 10) {
+            // Final repair pass. CREATE IF NOT EXISTS plus addColumnIfMissing
+            // makes this migration safe for databases that were upgraded
+            // partially, restored from an older backup, or created by a
+            // previous app build with an incomplete schema.
+            createSchema(db)
+            addColumnIfMissing(db, TABLE_SHOPS, COL_REGISTRATION_MODE, "TEXT NOT NULL DEFAULT 'NUMERIC'")
+            addColumnIfMissing(db, TABLE_SHOPS, COL_REGISTRATION_NUMBER, "TEXT NOT NULL DEFAULT ''")
+            addColumnIfMissing(db, TABLE_MONTHS, COL_WORKER_ID, "INTEGER")
+            addColumnIfMissing(db, TABLE_INDIVIDUAL_ENTRIES, COL_CUSTOMER_SEARCH, "TEXT NOT NULL DEFAULT ''")
+            addColumnIfMissing(db, TABLE_INDIVIDUAL_ENTRIES, COL_CUSTOMER_SEARCH_DOTLESS, "TEXT NOT NULL DEFAULT ''")
+            addColumnIfMissing(db, "assistants", "phone", "TEXT NOT NULL DEFAULT ''")
+            addColumnIfMissing(db, "assistants", "link_code", "TEXT NOT NULL DEFAULT ''")
+            addColumnIfMissing(db, "assistants", "default_rate", "INTEGER NOT NULL DEFAULT 0")
+            addColumnIfMissing(db, "assistant_daily_records", "reported_quantity", "INTEGER NOT NULL DEFAULT 0")
+            addColumnIfMissing(db, "assistant_daily_records", "entered_by", "TEXT NOT NULL DEFAULT 'TAILOR'")
+            addColumnIfMissing(db, "assistant_daily_records", "approval_status", "TEXT NOT NULL DEFAULT 'APPROVED'")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_assistants_link_code ON assistants(link_code) WHERE link_code <> ''")
+        }
     }
 
     private fun migrateToVersion4(db: SQLiteDatabase) {
-        val columns = mutableListOf<String>()
-        db.rawQuery("PRAGMA table_info($TABLE_SHOPS)", null).use { cursor ->
-            val nameIndex = cursor.getColumnIndex("name")
-            while (cursor.moveToNext()) {
-                if (nameIndex >= 0) columns.add(cursor.getString(nameIndex))
-            }
-        }
-        if (!columns.contains(COL_REGISTRATION_MODE)) {
-            db.execSQL("ALTER TABLE $TABLE_SHOPS ADD COLUMN $COL_REGISTRATION_MODE TEXT NOT NULL DEFAULT 'NUMERIC'")
-        }
+        // Idempotent migration: safe when the column was already introduced by
+        // a partially-applied migration or a restored database.
+        addColumnIfMissing(
+            db,
+            TABLE_SHOPS,
+            COL_REGISTRATION_MODE,
+            "TEXT NOT NULL DEFAULT 'NUMERIC'"
+        )
     }
 
     private fun migrateToVersion6(db: SQLiteDatabase) {
