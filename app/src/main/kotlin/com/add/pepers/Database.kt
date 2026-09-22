@@ -177,7 +177,7 @@ SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "add_paper.db"
-        private const val DATABASE_VERSION = 8
+        private const val DATABASE_VERSION = 9
 
         private const val TABLE_SHOPS = "shops"
         private const val TABLE_WORKERS = "workers"
@@ -350,6 +350,10 @@ SQLiteOpenHelper(
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_days_month ON $TABLE_DAYS($COL_MONTH_ID)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_entries_day ON $TABLE_ENTRIES($COL_DAY_ID)")
         createIndividualSchema(db)
+        // The assistant feature must exist for fresh installations too.
+        // Previously the schema was only created from the v7 upgrade path,
+        // so a brand-new v8 database crashed on the first assistant query.
+        createAssistantSchema(db)
     }
 
     private fun createIndividualSchema(db: SQLiteDatabase) {
@@ -495,6 +499,20 @@ SQLiteOpenHelper(
         }
         if (oldVersion < 8) {
             migrateToVersion8(db)
+        }
+        if (oldVersion < 9) {
+            // Repair databases created at version 8 where onCreate() previously
+            // omitted the assistant tables. createAssistantSchema() is
+            // idempotent and addColumnIfMissing() repairs partially-created
+            // assistant schemas as well.
+            createAssistantSchema(db)
+            addColumnIfMissing(db, "assistants", "phone", "TEXT NOT NULL DEFAULT ''")
+            addColumnIfMissing(db, "assistants", "link_code", "TEXT NOT NULL DEFAULT ''")
+            addColumnIfMissing(db, "assistants", "default_rate", "INTEGER NOT NULL DEFAULT 0")
+            addColumnIfMissing(db, "assistant_daily_records", "reported_quantity", "INTEGER NOT NULL DEFAULT 0")
+            addColumnIfMissing(db, "assistant_daily_records", "entered_by", "TEXT NOT NULL DEFAULT 'TAILOR'")
+            addColumnIfMissing(db, "assistant_daily_records", "approval_status", "TEXT NOT NULL DEFAULT 'APPROVED'")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_assistants_link_code ON assistants(link_code) WHERE link_code <> ''")
         }
     }
 
