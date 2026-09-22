@@ -631,9 +631,24 @@ private object LocalSyncSnapshot {
                 }
             }
         }
-        if (!exists) {
+        if (exists) return
+
+        try {
             db.execSQL("ALTER TABLE sync_records ADD COLUMN $column $definition")
+        } catch (error: android.database.sqlite.SQLiteException) {
+            // A second sync worker/process can race after the PRAGMA check.
+            // If the column now exists, the migration is already complete.
+            if (!syncColumnExists(db, column)) throw error
         }
+    }
+
+    private fun syncColumnExists(db: SQLiteDatabase, column: String): Boolean {
+        db.rawQuery("PRAGMA table_info(sync_records)", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(1).equals(column, ignoreCase = true)) return true
+            }
+        }
+        return false
     }
 
     private fun stamp(
