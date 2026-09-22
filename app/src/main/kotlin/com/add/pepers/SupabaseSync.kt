@@ -124,6 +124,33 @@ internal object SupabaseSyncManager {
     data class SyncResult(val uploadedRows: Int, val message: String)
 
     suspend fun sync(context: Context, session: SupabaseSession): SyncResult = withContext(Dispatchers.IO) {
+        // A saved access token can expire while the app is closed. Refresh it
+        // before touching Storage or the REST API, then retry once after a 401.
+        val activeSession = if (
+            session.expiresAt > 0L &&
+            session.expiresAt <= System.currentTimeMillis() + 60_000L &&
+            session.refreshToken.isNotBlank()
+        ) {
+            SupabaseAuth.refresh(context, session)
+        } else {
+            session
+        }
+
+        try {
+            syncOnce(context, activeSession)
+        } catch (error: IllegalStateException) {
+            if (error.message?.contains("Supabase 401") == true &&
+                activeSession.refreshToken.isNotBlank()
+            ) {
+                val refreshed = SupabaseAuth.refresh(context, activeSession)
+                syncOnce(context, refreshed)
+            } else {
+                throw error
+            }
+        }
+    }
+
+    private suspend fun syncOnce(context: Context, session: SupabaseSession): SyncResult {
         SupabaseStorage.uploadProfileImage(context, session)
         val snapshot = LocalSyncSnapshot.read(context, session.userId, SupabaseSessionStore.deviceId(context))
         val order = listOf(
@@ -149,7 +176,7 @@ internal object SupabaseSyncManager {
             SupabaseStorage.downloadProfileImage(context, session, it)
         }
         LocalSyncImporter.apply(context, remote, SupabaseSessionStore.deviceId(context))
-        SyncResult(uploaded, "تمت مزامنة $uploaded سجلًا")
+        return SyncResult(uploaded, "تمت مزامنة $uploaded سجلًا")
     }
 
     private suspend fun downloadRemote(session: SupabaseSession): Map<String, JSONArray> = withContext(Dispatchers.IO) {
