@@ -181,7 +181,7 @@ SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "add_paper.db"
-        private const val DATABASE_VERSION = 10
+        private const val DATABASE_VERSION = 11
 
         private const val TABLE_SHOPS = "shops"
         private const val TABLE_WORKERS = "workers"
@@ -191,6 +191,7 @@ SQLiteOpenHelper(
         private const val TABLE_ENTRIES = "entries"
         private const val TABLE_INDIVIDUAL_ENTRIES = "individual_entries"
         private const val TABLE_INDIVIDUAL_ITEMS = "individual_entry_items"
+        private const val TABLE_SYNC_RECORDS = "sync_records"
 
         private const val COL_ID = "id"
         private const val COL_SHOP_ID = "shop_id"
@@ -358,6 +359,22 @@ SQLiteOpenHelper(
         // Previously the schema was only created from the v7 upgrade path,
         // so a brand-new v8 database crashed on the first assistant query.
         createAssistantSchema(db)
+        createSyncSchema(db)
+    }
+
+    private fun createSyncSchema(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_SYNC_RECORDS (
+                record_key TEXT PRIMARY KEY,
+                table_name TEXT NOT NULL,
+                local_id INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                content_hash TEXT NOT NULL DEFAULT ''
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_sync_records_table_local ON $TABLE_SYNC_RECORDS(table_name, local_id)")
     }
 
     private fun createIndividualSchema(db: SQLiteDatabase) {
@@ -536,6 +553,13 @@ SQLiteOpenHelper(
             addColumnIfMissing(db, "assistant_daily_records", "entered_by", "TEXT NOT NULL DEFAULT 'TAILOR'")
             addColumnIfMissing(db, "assistant_daily_records", "approval_status", "TEXT NOT NULL DEFAULT 'APPROVED'")
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_assistants_link_code ON assistants(link_code) WHERE link_code <> ''")
+        }
+        if (oldVersion < 11) {
+            // Repair the local sync metadata table without ever blindly adding
+            // columns that may already exist in an older/partially upgraded DB.
+            createSyncSchema(db)
+            addColumnIfMissing(db, TABLE_SYNC_RECORDS, "updated_at", "INTEGER NOT NULL DEFAULT 0")
+            addColumnIfMissing(db, TABLE_SYNC_RECORDS, "content_hash", "TEXT NOT NULL DEFAULT ''")
         }
     }
 
