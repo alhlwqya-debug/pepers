@@ -136,6 +136,12 @@ fun WorkLogSheet() {
         BackgroundSyncScheduler.requestNow(context)
     }
 
+    val accountKey = prefs.getString("profile_user_id", "").orEmpty().trim().ifBlank { "local" }
+    val firstSetupKey = "first_setup_completed_v1_" + accountKey
+
+    // ===== حالة الإدخال المبكرة =====
+    var activeExpenseDay by remember { mutableStateOf<DayRecord?>(null) }
+
     // ===== حالة واجهة المستخدم =====
     var drawerOpen by remember { mutableStateOf(false) }
     var shopMenuOpen by remember { mutableStateOf(false) }
@@ -225,7 +231,6 @@ fun WorkLogSheet() {
     var newPiecePrice by remember { mutableStateOf("") }
     var expenseAmount by remember { mutableStateOf("") }
     var expenseNote by remember { mutableStateOf("") }
-    var activeExpenseDay by remember { mutableStateOf<DayRecord?>(null) }
     var renamedMonth by remember { mutableStateOf("") }
     var copyYear by remember { mutableStateOf("") }
     var copyMonth by remember { mutableStateOf("") }
