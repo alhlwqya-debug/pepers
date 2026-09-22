@@ -414,7 +414,7 @@ internal fun MainLedger(
             database = database,
             shopId = selectedShopId,
             bundle = bundle,
-            day = bundle.days.firstOrNull() ?: return@Column,
+            day = bundle.days.firstOrNull() ?: DayRecord(0L, bundle.month.id, "", ""),
             pieces = pieces,
             compact = false
         )
