@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "projects": [
+    {
+      "id": "pepers",
+      "name": "pepers",
+      "root": "",
+      "buildSystem": "native",
+      "settings": {},
+      "modules": [],
+      "libraries": []
+    }
+  ]
+}
