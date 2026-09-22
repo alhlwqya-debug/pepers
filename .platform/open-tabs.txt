@@ -1,3 +1,11 @@
 #v2
-0
+8
 /storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/kotlin/com/add/pepers/WorkLogSheet.kt	0	0	text
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/kotlin/com/add/pepers/PdfRangeUtils.kt	5308	122	text
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/res/drawable/ic_launcher_art.png	0	0	preview
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/java/android/print/PdfPrint.java	0	39	text
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/settings.gradle.kts	0	0	text
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/kotlin/com/add/pepers/AssistantDailySection.kt	0	0	text
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/build.gradle.kts	141	0	text
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/src/main/res/drawable/ic_launcher_foreground.xml	0	0	preview
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/pepers/app/build/outputs/mapping/release/mapping.txt	0	0	text
