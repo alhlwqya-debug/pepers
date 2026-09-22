@@ -139,7 +139,12 @@ fun WorkLogSheet() {
     var showPieceDialog by remember { mutableStateOf(false) }
     var showPieceManager by remember { mutableStateOf(false) } // ✅ جديد
     var showExpenseDialog by remember { mutableStateOf(false) }
-    var showUserProfile by remember { mutableStateOf(userName.isBlank()) }
+    var showUserProfile by remember { mutableStateOf(userName.isBlank() && shops.isNotEmpty()) }
+    var showFirstSetup by remember {
+        mutableStateOf(
+            shops.isEmpty() && !prefs.getBoolean("first_setup_completed_v1", false)
+        )
+    }
     var showStatistics by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
@@ -335,9 +340,9 @@ fun WorkLogSheet() {
             prefs.edit().putBoolean("shop_modes_migrated_v4", true).remove("registration_mode").apply()
             refreshAll()
         }
-        if (userName.isBlank()) {
+        if (!showFirstSetup && userName.isBlank()) {
             showUserProfile = true
-        } else if (!prefs.getBoolean("onboarding_completed_v1", false)) {
+        } else if (!showFirstSetup && !prefs.getBoolean("onboarding_completed_v1", false)) {
             showHelp = true
         }
         database.optimizeDatabase()
@@ -579,6 +584,24 @@ fun WorkLogSheet() {
     }
 
     // ===== الحوارات =====
+
+    // إعداد الحساب الجديد: محل + شهر + أيام العمل + مساعد اختياري.
+    // بعد إكماله لا يظهر مرة أخرى لهذا الحساب.
+    if (showFirstSetup) {
+        FirstSetupWizard(
+            database = database,
+            userName = userName,
+            onFinished = {
+                prefs.edit().putBoolean("first_setup_completed_v1", true).apply()
+                showFirstSetup = false
+                refreshAll()
+                selectedShopId?.let { SmartShopMemory.rememberShop(context, it) }
+                selectedMonthId = months.firstOrNull()?.id
+                bundle = selectedMonthId?.let(database::loadMonthBundle)
+                Toast.makeText(context, "تم إعداد المحل والشهر وأيام العمل. يمكنك البدء الآن.", Toast.LENGTH_LONG).show()
+            }
+        )
+    }
 
     if (showAssistantManager && currentShop != null) {
         AssistantManagerDialog(
