@@ -9,7 +9,6 @@ app|androidx.compose.material:material-icons-extended:1.7.5|
 app|androidx.compose.ui:ui:1.7.5|
 app|androidx.core:core-ktx:1.12.0|
 app|androidx.work:work-runtime-ktx:2.10.1|
-app|kotlin-stdlib|
 app|org.jetbrains.kotlin:kotlin-stdlib:2.2.21|
 app|org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3|
 app|org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3|
