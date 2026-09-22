@@ -408,19 +408,6 @@ internal fun MainLedger(
             }
         }
 
-        // ===== سجل مساعدي العمال =====
-        // يظهر أسفل السجل العددي ويستخدم نفس بيانات أيام وقطع الخياط.
-        if (bundle.days.isNotEmpty()) {
-            AssistantDailySection(
-                database = database,
-                shopId = selectedShopId,
-                bundle = bundle,
-                day = bundle.days.first(),
-                pieces = pieces,
-                compact = false
-            )
-        }
-
         Column(
             Modifier.fillMaxWidth().background(Color(0xFFF0F2F5)).border(1.dp, Color.LightGray).padding(4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
