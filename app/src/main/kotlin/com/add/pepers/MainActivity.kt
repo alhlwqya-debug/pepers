@@ -113,10 +113,21 @@ class MainActivity : FragmentActivity() {
                                     val session = authRepository.savedSession()
                                     if (session != null) {
                                         LocalDatabaseAccountManager.activateUser(applicationContext, session.userId)
-                                        runCatching {
-                                            SupabaseSessionStore.load(applicationContext)?.let {
-                                                SupabaseSyncManager.sync(applicationContext, it)
-                                            }
+                                        // Restore cloud data before composing the workspace. Otherwise a
+                                        // returning account can briefly see the empty "add shop" screen
+                                        // while its private local database is still being populated.
+                                        val syncSession = SupabaseSessionStore.load(applicationContext)
+                                        val syncResult = if (syncSession != null) {
+                                            runCatching { SupabaseSyncManager.sync(applicationContext, syncSession) }
+                                        } else {
+                                            null
+                                        }
+                                        if (syncResult?.isFailure == true) {
+                                            Toast.makeText(
+                                                this@MainActivity,
+                                                "تعذر استعادة بيانات الحساب من السحابة. سيتم الاحتفاظ بالبيانات المحلية.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
                                         }
                                     }
                                     ensureLocalProfile(session)
