@@ -124,6 +124,31 @@ internal object SupabaseSyncManager {
     data class SyncResult(val uploadedRows: Int, val message: String)
 
     suspend fun sync(context: Context, session: SupabaseSession): SyncResult = withContext(Dispatchers.IO) {
+        // A saved access token may expire while the app is closed. Refresh it
+        // before restoring cloud data so returning accounts do not appear empty.
+        val activeSession = if (session.expiresAt > 0L &&
+            session.expiresAt <= System.currentTimeMillis() + 60_000L
+        ) {
+            SupabaseAuth.refresh(context, session)
+        } else {
+            session
+        }
+
+        try {
+            syncOnce(context, activeSession)
+        } catch (error: IllegalStateException) {
+            // Recover once from an expired/revoked access token. All writes use
+            // idempotent upserts, so a retry is safe.
+            if (error.message?.contains("Supabase 401") == true) {
+                val refreshed = SupabaseAuth.refresh(context, activeSession)
+                syncOnce(context, refreshed)
+            } else {
+                throw error
+            }
+        }
+    }
+
+    private suspend fun syncOnce(context: Context, session: SupabaseSession): SyncResult {
         SupabaseStorage.uploadProfileImage(context, session)
         val snapshot = LocalSyncSnapshot.read(context, session.userId, SupabaseSessionStore.deviceId(context))
         val order = listOf(
@@ -266,6 +291,9 @@ private object LocalSyncImporter {
             ensure("assistant_daily_records", text(o, "record_key"), id, ContentValues().apply {
                 put("assistant_id", assistantId); put("day_id", dayId); put("status", text(o, "status"))
                 put("expense", o.optInt("expense")); put("expense_note", text(o, "expense_note")); put("notes", text(o, "notes"))
+                put("reported_quantity", o.optInt("reported_quantity"))
+                put("entered_by", text(o, "entered_by").ifBlank { "TAILOR" })
+                put("approval_status", text(o, "approval_status").ifBlank { "APPROVED" })
             })
         }
         rows("assistant_withdrawals").forEachObject { o ->
