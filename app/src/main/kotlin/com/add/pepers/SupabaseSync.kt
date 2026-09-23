@@ -190,6 +190,11 @@ internal object SupabaseSyncManager {
 }
 
 private object LocalSyncImporter {
+        } finally {
+            database.close()
+        }
+    }
+
     private fun ensureSyncState(db: SQLiteDatabase) {
         db.execSQL(
             """
@@ -234,8 +239,10 @@ private object LocalSyncImporter {
     private val SYNC_MIGRATION_LOCK = Any()
 
     fun apply(context: Context, remote: Map<String, JSONArray>, deviceId: String) {
-        val db = Database(context).writableDatabase
-        ensureSyncState(db)
+        val database = Database(context)
+        val db = database.writableDatabase
+        try {
+            ensureSyncState(db)
         val ids = mutableMapOf<String, Long>()
         fun resolve(table: String, recordKey: String, legacyId: Long): Long? {
             ids[recordKey]?.let { return it }
@@ -336,6 +343,9 @@ private object LocalSyncImporter {
             ensure("assistant_daily_records", text(o, "record_key"), id, ContentValues().apply {
                 put("assistant_id", assistantId); put("day_id", dayId); put("status", text(o, "status"))
                 put("expense", o.optInt("expense")); put("expense_note", text(o, "expense_note")); put("notes", text(o, "notes"))
+                put("reported_quantity", o.optInt("reported_quantity", 0))
+                put("entered_by", text(o, "entered_by").ifBlank { "TAILOR" })
+                put("approval_status", text(o, "approval_status").ifBlank { "APPROVED" })
             })
         }
         rows("assistant_withdrawals").forEachObject { o ->
@@ -409,8 +419,10 @@ private object SupabaseHttp {
 
 private object LocalSyncSnapshot {
     fun read(context: Context, userId: String, deviceId: String): Map<String, JSONArray> {
-        val db = Database(context).writableDatabase
-        ensureSyncState(db)
+        val database = Database(context)
+        val db = database.writableDatabase
+        try {
+            ensureSyncState(db)
 
         val shopKeys = mutableMapOf<Long, String>()
         val workerKeys = mutableMapOf<Long, String>()
@@ -671,6 +683,11 @@ private object LocalSyncSnapshot {
             "assistant_piece_rates" to assistantRates, "assistant_daily_records" to assistantDaily,
             "assistant_withdrawals" to assistantWithdrawals
         )
+    }
+
+        } finally {
+            database.close()
+        }
     }
 
     private fun ensureSyncState(db: SQLiteDatabase) {
