@@ -1,9 +1,81 @@
-build/
-.platform/
+# ============================================================
+# Pepers - Android / Gradle / Android Studio / CodeAssist
+# ============================================================
+
+# Gradle
 .gradle/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android build/native intermediates
+.cxx/
+.externalNativeBuild/
+**/.cxx/
+**/.externalNativeBuild/
+
+# CodeAssist / mobile IDE generated project data
+.platform/
+**/.platform/
+.code-workspace
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Local machine / SDK configuration
 local.properties
+
+# Kotlin / build caches
+.kotlin/
+**/.kotlin/
+.kotlin_module
+*.hprof
+
+# Generated Android files
+captures/
 *.apk
 *.aab
+*.apks
+*.aab
+*.dex
+*.class
+
+# Signing / private keys
 *.jks
 *.keystore
+*.p12
+*.pfx
+
+# OS/editor files
 .DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+
+# Temporary/log files
+*.log
+*.tmp
+*.temp
+
+# ============================================================
+# IMPORTANT:
+# Keep source, Gradle wrapper, F-Droid metadata and reproducible
+# build configuration tracked.
+#
+# Examples that MUST remain tracked:
+#   gradlew
+#   gradlew.bat
+#   gradle/wrapper/gradle-wrapper.jar
+#   gradle/wrapper/gradle-wrapper.properties
+#   metadata/
+#   fastlane/
+#   app/src/
+#   settings.gradle*
+#   build.gradle*
+#   gradle.properties
+# ============================================================
