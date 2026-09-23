@@ -179,7 +179,7 @@ SQLiteOpenHelper(
         private val SCHEMA_MIGRATION_LOCK = Any()
 
         private const val DATABASE_NAME = "add_paper.db"
-        private const val DATABASE_VERSION = 11
+        private const val DATABASE_VERSION = 12
 
         private const val TABLE_SHOPS = "shops"
         private const val TABLE_WORKERS = "workers"
@@ -246,6 +246,42 @@ SQLiteOpenHelper(
 
     override fun onCreate(db: SQLiteDatabase) {
         createSchema(db)
+        repairAssistantDailyRecordSchema(db)
+    }
+
+    /**
+     * Repairs schema drift even when a database was already stamped with the
+     * current version by an older build that did not contain the new columns.
+     * This is intentionally additive and never deletes or recreates user data.
+     */
+    override fun onOpen(db: SQLiteDatabase) {
+        super.onOpen(db)
+        synchronized(SCHEMA_MIGRATION_LOCK) {
+            createAssistantSchema(db)
+            repairAssistantDailyRecordSchema(db)
+            createSyncSchema(db)
+        }
+    }
+
+    private fun repairAssistantDailyRecordSchema(db: SQLiteDatabase) {
+        addColumnIfMissing(
+            db,
+            "assistant_daily_records",
+            "reported_quantity",
+            "INTEGER NOT NULL DEFAULT 0"
+        )
+        addColumnIfMissing(
+            db,
+            "assistant_daily_records",
+            "entered_by",
+            "TEXT NOT NULL DEFAULT 'TAILOR'"
+        )
+        addColumnIfMissing(
+            db,
+            "assistant_daily_records",
+            "approval_status",
+            "TEXT NOT NULL DEFAULT 'APPROVED'"
+        )
     }
 
     private fun createSchema(db: SQLiteDatabase) {
@@ -558,6 +594,13 @@ SQLiteOpenHelper(
             createSyncSchema(db)
             addColumnIfMissing(db, TABLE_SYNC_RECORDS, "updated_at", "INTEGER NOT NULL DEFAULT 0")
             addColumnIfMissing(db, TABLE_SYNC_RECORDS, "content_hash", "TEXT NOT NULL DEFAULT ''")
+        }
+        if (oldVersion < 12) {
+            // Version 12 fixes schema drift found on devices that reached
+            // version 11 without the assistant daily-record columns.
+            createAssistantSchema(db)
+            repairAssistantDailyRecordSchema(db)
+            createSyncSchema(db)
         }
     }
 
