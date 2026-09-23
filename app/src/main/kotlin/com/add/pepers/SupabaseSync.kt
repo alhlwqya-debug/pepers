@@ -190,11 +190,6 @@ internal object SupabaseSyncManager {
 }
 
 private object LocalSyncImporter {
-        } finally {
-            database.close()
-        }
-    }
-
     private fun ensureSyncState(db: SQLiteDatabase) {
         db.execSQL(
             """
@@ -371,8 +366,10 @@ private object LocalSyncImporter {
             )
                 .apply()
         }
+        } finally {
+            database.close()
+        }
     }
-
     private fun remember(db: SQLiteDatabase, recordKey: String, table: String, localId: Long) {
         db.insertWithOnConflict("sync_records", null, ContentValues().apply { put("record_key", recordKey); put("table_name", table); put("local_id", localId) }, SQLiteDatabase.CONFLICT_REPLACE)
     }
@@ -683,13 +680,10 @@ private object LocalSyncSnapshot {
             "assistant_piece_rates" to assistantRates, "assistant_daily_records" to assistantDaily,
             "assistant_withdrawals" to assistantWithdrawals
         )
-    }
-
         } finally {
             database.close()
         }
     }
-
     private fun ensureSyncState(db: SQLiteDatabase) {
         // CREATE TABLE IF NOT EXISTS already creates the current schema for
         // new installs. For existing installs, add only columns that are
