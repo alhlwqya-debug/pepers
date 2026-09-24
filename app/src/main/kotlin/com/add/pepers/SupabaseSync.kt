@@ -8,6 +8,8 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -121,9 +123,12 @@ internal object SupabaseAuth {
 }
 
 internal object SupabaseSyncManager {
+    private val syncMutex = Mutex()
+
     data class SyncResult(val uploadedRows: Int, val message: String)
 
-    suspend fun sync(context: Context, session: SupabaseSession): SyncResult = withContext(Dispatchers.IO) {
+    suspend fun sync(context: Context, session: SupabaseSession): SyncResult = syncMutex.withLock {
+        withContext(Dispatchers.IO) {
         // A saved access token can expire while the app is closed. Refresh it
         // before touching Storage or the REST API, then retry once after a 401.
         val activeSession = if (
@@ -147,6 +152,7 @@ internal object SupabaseSyncManager {
             } else {
                 throw error
             }
+        }
         }
     }
 
@@ -188,9 +194,34 @@ internal object SupabaseSyncManager {
 
     private suspend fun downloadRemote(session: SupabaseSession): Map<String, JSONArray> = withContext(Dispatchers.IO) {
         val result = linkedMapOf<String, JSONArray>()
-        listOf("user_profiles", "shops", "workers", "months", "pieces", "days", "entries", "individual_entries", "individual_entry_items", "assistants", "assistant_piece_rates", "assistant_daily_records", "assistant_withdrawals").forEach { table ->
-            val response = SupabaseHttp.request("GET", "/rest/v1/$table?select=*&user_id=eq.${session.userId}", session = session)
-            result[table] = response.optJSONArray("data") ?: JSONArray()
+        val tables = listOf(
+            "user_profiles", "shops", "workers", "months", "pieces", "days",
+            "entries", "individual_entries", "individual_entry_items",
+            "assistants", "assistant_piece_rates", "assistant_daily_records", "assistant_withdrawals"
+        )
+        val pageSize = 500
+
+        for (table in tables) {
+            val allRows = JSONArray()
+            var offset = 0
+            while (true) {
+                val response = try {
+                    SupabaseHttp.request(
+                        "GET",
+                        "/rest/v1/$table?select=*&user_id=eq." + session.userId + "&limit=" + pageSize + "&offset=" + offset,
+                        session = session
+                    )
+                } catch (error: IllegalStateException) {
+                    throw IllegalStateException("فشل جلب جدول $table من السحابة: ${error.message}", error)
+                }
+                val page = response.optJSONArray("data") ?: JSONArray()
+                for (index in 0 until page.length()) {
+                    allRows.put(page.get(index))
+                }
+                if (page.length() < pageSize) break
+                offset += pageSize
+            }
+            result[table] = allRows
         }
         result
     }
