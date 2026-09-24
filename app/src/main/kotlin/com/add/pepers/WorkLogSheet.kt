@@ -1071,7 +1071,15 @@ fun WorkLogSheet() {
                 Button(
                     onClick = {
                         createInternalAutoBackup(context)
-                        database.deleteShop(selectedShopId!!)
+                        val deletedShopId = selectedShopId!!
+                        val deleted = database.deleteShop(deletedShopId)
+                        if (deleted) {
+                            val accountContext = AccountContextStore.load(context)
+                            if (accountContext?.shopId == deletedShopId) {
+                                AccountContextStore.setCurrentShop(context, null)
+                            }
+                            SmartShopMemory.clear(context)
+                        }
                         showDeleteShopDialog = false
                         selectedShopId = null
                         selectedMonthId = null
