@@ -347,6 +347,21 @@ class SupabaseAuthRepository(private val context: Context) {
                     expiresAt = session.expiresAt
                 )
             )
+
+            val previousContext = AccountContextStore.load(context)
+            if (previousContext?.userId != session.userId) {
+                AccountContextStore.clear(context)
+            }
+            AccountContextStore.save(
+                context,
+                AppAccountContext(
+                    userId = session.userId,
+                    role = AccountRole.from(session.role),
+                    shopId = if (previousContext?.userId == session.userId) previousContext.shopId else null,
+                    shopName = if (previousContext?.userId == session.userId) previousContext.shopName else "",
+                    ready = false
+                )
+            )
         }
     }
 
@@ -369,6 +384,7 @@ class SupabaseAuthRepository(private val context: Context) {
         LocalDatabaseAccountManager.clearActiveProfile(context)
         preferences.edit().clear().apply()
         SupabaseSessionStore.clear(context)
+        AccountContextStore.clear(context)
     }
 
     private fun saveProfile(name: String, phone: String, email: String) {
