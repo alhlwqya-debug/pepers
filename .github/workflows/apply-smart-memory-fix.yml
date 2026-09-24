@@ -18,104 +18,103 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          p = Path('app/src/main/kotlin/com/add/pepers/WorkLogSheet.kt')
-          s = p.read_text(encoding='utf-8')
 
-          old = 'var selectedShopId by remember { mutableStateOf(shops.firstOrNull()?.id) }'
-          new = '''var selectedShopId by remember {
-              mutableStateOf(
-                  SmartShopMemory.lastShopId(context)?.takeIf { id -> shops.any { it.id == id } }
-                      ?: shops.firstOrNull()?.id
-              )
-          }'''
-          if old not in s:
-              raise SystemExit('selectedShopId anchor not found')
-          s = s.replace(old, new, 1)
+          p = Path("app/src/main/kotlin/com/add/pepers/WorkLogSheet.kt")
+          s = p.read_text(encoding="utf-8")
 
-          old = '''var registrationMode by remember(selectedShopId, shops) {
-        mutableStateOf(
-            shops.firstOrNull { it.id == selectedShopId }?.registrationMode
-                ?: RegistrationMode.NUMERIC
-        )
-    }'''
-          new = '''var registrationMode by remember(selectedShopId, shops) {
-        mutableStateOf(
-            selectedShopId?.let { id ->
-                SmartShopMemory.resolveMode(
-                    context,
-                    id,
-                    shops.firstOrNull { it.id == id }?.registrationMode
-                )
-            } ?: RegistrationMode.NUMERIC
-        )
-    }'''
-          if old not in s:
-              raise SystemExit('registrationMode state anchor not found')
-          s = s.replace(old, new, 1)
+          replacements = [
+              (
+                  "var selectedShopId by remember { mutableStateOf(shops.firstOrNull()?.id) }",
+                  "var selectedShopId by remember {\n"
+                  "    mutableStateOf(\n"
+                  "        SmartShopMemory.lastShopId(context)?.takeIf { id -> shops.any { it.id == id } }\n"
+                  "            ?: shops.firstOrNull()?.id\n"
+                  "    )\n"
+                  "}",
+              ),
+              (
+                  "var registrationMode by remember(selectedShopId, shops) {\n"
+                  "    mutableStateOf(\n"
+                  "        shops.firstOrNull { it.id == selectedShopId }?.registrationMode\n"
+                  "            ?: RegistrationMode.NUMERIC\n"
+                  "    )\n"
+                  "}",
+                  "var registrationMode by remember(selectedShopId, shops) {\n"
+                  "    mutableStateOf(\n"
+                  "        selectedShopId?.let { id ->\n"
+                  "            SmartShopMemory.resolveMode(\n"
+                  "                context,\n"
+                  "                id,\n"
+                  "                shops.firstOrNull { it.id == id }?.registrationMode\n"
+                  "            )\n"
+                  "        } ?: RegistrationMode.NUMERIC\n"
+                  "    )\n"
+                  "}",
+              ),
+              (
+                  "        shops = database.getShops()\n"
+                  "        if (shops.none { it.id == selectedShopId }) selectedShopId = shops.firstOrNull()?.id\n"
+                  "        registrationMode = shops.firstOrNull { it.id == selectedShopId }?.registrationMode\n"
+                  "            ?: RegistrationMode.NUMERIC",
+                  "        shops = database.getShops()\n"
+                  "        if (shops.none { it.id == selectedShopId }) {\n"
+                  "            selectedShopId = SmartShopMemory.lastShopId(context)?.takeIf { id -> shops.any { it.id == id } }\n"
+                  "                ?: shops.firstOrNull()?.id\n"
+                  "        }\n"
+                  "        registrationMode = selectedShopId?.let { id ->\n"
+                  "            SmartShopMemory.resolveMode(\n"
+                  "                context,\n"
+                  "                id,\n"
+                  "                shops.firstOrNull { it.id == id }?.registrationMode\n"
+                  "            )\n"
+                  "        } ?: RegistrationMode.NUMERIC",
+              ),
+              (
+                  "    LaunchedEffect(selectedShopId) {\n"
+                  "        registrationMode = shops.firstOrNull { it.id == selectedShopId }?.registrationMode\n"
+                  "            ?: RegistrationMode.NUMERIC",
+                  "    LaunchedEffect(selectedShopId) {\n"
+                  "        selectedShopId?.let { SmartShopMemory.rememberShop(context, it) }\n"
+                  "        registrationMode = selectedShopId?.let { id ->\n"
+                  "            SmartShopMemory.resolveMode(\n"
+                  "                context,\n"
+                  "                id,\n"
+                  "                shops.firstOrNull { it.id == id }?.registrationMode\n"
+                  "            )\n"
+                  "        } ?: RegistrationMode.NUMERIC",
+              ),
+              (
+                  "                onSelectShop = { id ->\n"
+                  "                    selectedShopId = id\n"
+                  "                    registrationMode = database.getShops().firstOrNull { it.id == id }?.registrationMode ?: RegistrationMode.NUMERIC",
+                  "                onSelectShop = { id ->\n"
+                  "                    SmartShopMemory.rememberShop(context, id)\n"
+                  "                    val persistedMode = database.getShops().firstOrNull { it.id == id }?.registrationMode\n"
+                  "                    SmartShopMemory.modeForShop(context, id)?.let { SmartShopMemory.rememberMode(context, id, it) }\n"
+                  "                    selectedShopId = id\n"
+                  "                    registrationMode = SmartShopMemory.resolveMode(context, id, persistedMode)",
+              ),
+          ]
 
-          old = '''        shops = database.getShops()
-        if (shops.none { it.id == selectedShopId }) selectedShopId = shops.firstOrNull()?.id
-        registrationMode = shops.firstOrNull { it.id == selectedShopId }?.registrationMode
-            ?: RegistrationMode.NUMERIC'''
-          new = '''        shops = database.getShops()
-        if (shops.none { it.id == selectedShopId }) {
-            selectedShopId = SmartShopMemory.lastShopId(context)?.takeIf { id -> shops.any { it.id == id } }
-                ?: shops.firstOrNull()?.id
-        }
-        registrationMode = selectedShopId?.let { id ->
-            SmartShopMemory.resolveMode(
-                context,
-                id,
-                shops.firstOrNull { it.id == id }?.registrationMode
-            )
-        } ?: RegistrationMode.NUMERIC'''
-          if old not in s:
-              raise SystemExit('reloadShops anchor not found')
-          s = s.replace(old, new, 1)
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit("Patch anchor not found")
+              s = s.replace(old, new, 1)
 
-          old = '''    LaunchedEffect(selectedShopId) {
-        registrationMode = shops.firstOrNull { it.id == selectedShopId }?.registrationMode
-            ?: RegistrationMode.NUMERIC'''
-          new = '''    LaunchedEffect(selectedShopId) {
-        selectedShopId?.let { SmartShopMemory.rememberShop(context, it) }
-        registrationMode = selectedShopId?.let { id ->
-            SmartShopMemory.resolveMode(
-                context,
-                id,
-                shops.firstOrNull { it.id == id }?.registrationMode
-            )
-        } ?: RegistrationMode.NUMERIC'''
-          if old not in s:
-              raise SystemExit('selectedShop effect anchor not found')
-          s = s.replace(old, new, 1)
-
-          old = '''                onSelectShop = { id ->
-                    selectedShopId = id
-                    registrationMode = database.getShops().firstOrNull { it.id == id }?.registrationMode ?: RegistrationMode.NUMERIC'''
-          new = '''                onSelectShop = { id ->
-                    SmartShopMemory.rememberShop(context, id)
-                    val persistedMode = database.getShops().firstOrNull { it.id == id }?.registrationMode
-                    SmartShopMemory.modeForShop(context, id)?.let { SmartShopMemory.rememberMode(context, id, it) }
-                    selectedShopId = id
-                    registrationMode = SmartShopMemory.resolveMode(context, id, persistedMode)'''
-          if old not in s:
-              raise SystemExit('numeric onSelectShop anchor not found')
-          s = s.replace(old, new, 1)
-
-          p.write_text(s, encoding='utf-8')
+          p.write_text(s, encoding="utf-8")
 
       - name: Commit fix
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/src/main/kotlin/com/add/pepers/WorkLogSheet.kt
           git diff --cached --quiet && exit 0
-          git commit -m 'fix: remember last shop and registration mode'
+          git commit -m "fix: remember last shop and registration mode"
           git push
 
       - name: Remove temporary workflow
         if: success()
         run: |
           git rm .github/workflows/apply-smart-memory-fix.yml
-          git commit -m 'chore: remove temporary smart memory patch workflow'
+          git commit -m "chore: remove temporary smart memory patch workflow"
           git push
