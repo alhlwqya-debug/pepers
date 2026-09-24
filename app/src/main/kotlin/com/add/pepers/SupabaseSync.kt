@@ -151,6 +151,13 @@ internal object SupabaseSyncManager {
     }
 
     private suspend fun syncOnce(context: Context, session: SupabaseSession): SyncResult {
+        // Never read/upload local rows until the SQLite file is explicitly bound
+        // to the authenticated Supabase user. This blocks legacy/shared databases
+        // from leaking their shops into another account.
+        if (!LocalDatabaseAccountManager.ensureBoundUser(context, session.userId)) {
+            throw IllegalStateException("Local database is not bound to the authenticated account")
+        }
+
         SupabaseStorage.uploadProfileImage(context, session)
         val snapshot = LocalSyncSnapshot.read(context, session.userId, SupabaseSessionStore.deviceId(context))
         val order = listOf(
@@ -234,6 +241,11 @@ private object LocalSyncImporter {
     private val SYNC_MIGRATION_LOCK = Any()
 
     fun apply(context: Context, remote: Map<String, JSONArray>, deviceId: String) {
+        val session = SupabaseSessionStore.load(context)
+            ?: throw IllegalStateException("No authenticated Supabase session")
+        if (!LocalDatabaseAccountManager.ensureBoundUser(context, session.userId)) {
+            throw IllegalStateException("Local database is not bound to the authenticated account")
+        }
         val database = Database(context)
         val db = database.writableDatabase
         try {
