@@ -106,12 +106,12 @@ internal object LocalDatabaseAccountManager {
         val safeId = sha256(userId).take(32)
         return File(
             context.getDatabasePath(DATABASE_NAME).parentFile,
-            "$USER_DB_PREFIX$$safeId.db"
+            "$USER_DB_PREFIX$safeId.db"
         )
     }
 
     private fun userProfileFile(context: Context, userId: String): File =
-        File(context.filesDir, "$USER_PROFILE_PREFIX$${sha256(userId).take(32)}.xml")
+        File(context.filesDir, "$USER_PROFILE_PREFIX${sha256(userId).take(32)}.xml")
 
     private fun userImageFile(context: Context, userId: String): File =
         File(
@@ -126,13 +126,13 @@ internal object LocalDatabaseAccountManager {
                 file.absolutePath, null, SQLiteDatabase.OPEN_READWRITE or SQLiteDatabase.CREATE_IF_NECESSARY
             ).use { db ->
                 db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS $BINDING_TABLE$ (" +
+                    "CREATE TABLE IF NOT EXISTS $BINDING_TABLE (" +
                         "id INTEGER PRIMARY KEY CHECK(id = 1)," +
                         "user_id TEXT NOT NULL," +
                         "bound_at INTEGER NOT NULL)"
                 )
                 db.execSQL(
-                    "INSERT OR REPLACE INTO $BINDING_TABLE$(id,user_id,bound_at) VALUES(1,?,?)",
+                    "INSERT OR REPLACE INTO $BINDING_TABLE(id,user_id,bound_at) VALUES(1,?,?)",
                     arrayOf(userId, System.currentTimeMillis())
                 )
             }
@@ -147,7 +147,7 @@ internal object LocalDatabaseAccountManager {
             ).use { db ->
                 var bound = false
                 db.rawQuery(
-                    "SELECT user_id FROM $BINDING_TABLE$ WHERE id = 1 LIMIT 1", null
+                    "SELECT user_id FROM $BINDING_TABLE WHERE id = 1 LIMIT 1", null
                 ).use { cursor ->
                     if (cursor.moveToFirst()) bound = cursor.getString(0) == userId
                 }
@@ -158,7 +158,7 @@ internal object LocalDatabaseAccountManager {
 
     private fun snapshotProfile(context: Context, userId: String) {
         val app = context.applicationContext
-        val source = File(app.dataDir, "shared_prefs/$PROFILE_PREFS$.xml")
+        val source = File(app.dataDir, "shared_prefs/$PROFILE_PREFS.xml")
         val target = userProfileFile(app, userId)
         if (source.exists()) {
             target.parentFile?.mkdirs()
@@ -175,7 +175,7 @@ internal object LocalDatabaseAccountManager {
     private fun restoreProfile(context: Context, userId: String) {
         val app = context.applicationContext
         val source = userProfileFile(app, userId)
-        val target = File(app.dataDir, "shared_prefs/$PROFILE_PREFS$.xml")
+        val target = File(app.dataDir, "shared_prefs/$PROFILE_PREFS.xml")
         app.getSharedPreferences(PROFILE_PREFS, Context.MODE_PRIVATE)
             .edit().clear().commit()
         if (source.exists()) {
