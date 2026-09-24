@@ -111,57 +111,63 @@ class MainActivity : FragmentActivity() {
                                 onGoogleSignIn = { launchGoogleSignIn() },
                                 onGoogleResultConsumed = { googleResult.value = null },
                                 onEnterApp = {
-                                    val session = authRepository.savedSession()
-                                    if (session != null) {
-                                        LocalDatabaseAccountManager.activateUser(applicationContext, session.userId)
+                                    // Account switching, SQLite file binding, token refresh and
+                                    // Supabase REST calls are disk/network work. Never run them from
+                                    // the Compose/UI thread; doing so causes skipped frames and ANR.
+                                    lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                        val session = authRepository.savedSession()
+                                        if (session != null) {
+                                            LocalDatabaseAccountManager.activateUser(applicationContext, session.userId)
 
-                                        // Always restore an expired/near-expiry session before the first
-                                        // cloud request. This prevents a newly opened app from trying
-                                        // to sync with a stale access token.
-                                        val restored = runCatching {
-                                            authRepository.restoreSession()
-                                        }.getOrNull()
-                                        val activeSession = when (restored) {
-                                            is AuthResult.SignedIn -> restored.session
-                                            else -> authRepository.savedSession() ?: session
-                                        }
-                                        LocalDatabaseAccountManager.activateUser(applicationContext, activeSession.userId)
+                                            val restored = runCatching {
+                                                authRepository.restoreSession()
+                                            }.getOrNull()
+                                            val activeSession = when (restored) {
+                                                is AuthResult.SignedIn -> restored.session
+                                                else -> authRepository.savedSession() ?: session
+                                            }
 
-                                        // Restore cloud data before composing the workspace. If the first
-                                        // request returns 401, refresh the Supabase token once and retry
-                                        // the complete sync instead of silently abandoning cloud restore.
-                                        val syncSession = SupabaseSessionStore.load(applicationContext)
-                                        val syncResult = if (syncSession != null) {
-                                            runCatching {
-                                                try {
-                                                    SupabaseSyncManager.sync(applicationContext, syncSession)
-                                                } catch (error: IllegalStateException) {
-                                                    if (error.message?.contains("Supabase 401") == true &&
-                                                        syncSession.refreshToken.isNotBlank()
-                                                    ) {
-                                                        val refreshed = SupabaseAuth.refresh(applicationContext, syncSession)
-                                                        SupabaseSyncManager.sync(applicationContext, refreshed)
-                                                    } else {
-                                                        throw error
+                                            LocalDatabaseAccountManager.activateUser(applicationContext, activeSession.userId)
+
+                                            val syncSession = SupabaseSessionStore.load(applicationContext)
+                                            val syncResult = if (syncSession != null) {
+                                                runCatching {
+                                                    try {
+                                                        SupabaseSyncManager.sync(applicationContext, syncSession)
+                                                    } catch (error: IllegalStateException) {
+                                                        if (error.message?.contains("Supabase 401") == true &&
+                                                            syncSession.refreshToken.isNotBlank()
+                                                        ) {
+                                                            val refreshed = SupabaseAuth.refresh(applicationContext, syncSession)
+                                                            SupabaseSyncManager.sync(applicationContext, refreshed)
+                                                        } else {
+                                                            throw error
+                                                        }
                                                     }
                                                 }
+                                            } else {
+                                                null
                                             }
-                                        } else {
-                                            null
-                                        }
-                                        syncResult?.exceptionOrNull()?.let { error ->
-                                            android.util.Log.e("PepersSync", "Cloud sync failed", error)
-                                            Toast.makeText(
-                                                this@MainActivity,
-                                                "تعذر مزامنة بيانات الحساب الآن. سيتم الاحتفاظ بالبيانات المحلية.",
-                                                Toast.LENGTH_LONG
-                                            ).show()
+
+                                            syncResult?.exceptionOrNull()?.let { error ->
+                                                android.util.Log.e("PepersSync", "Cloud sync failed", error)
+                                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                    Toast.makeText(
+                                                        this@MainActivity,
+                                                        "تعذر مزامنة بيانات الحساب الآن. سيتم الاحتفاظ بالبيانات المحلية.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                            }
+
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                ensureLocalProfile(activeSession)
+                                                requestNotificationPermissionIfNeeded()
+                                                BackgroundSyncScheduler.requestNow(applicationContext)
+                                                showMainApp = true
+                                            }
                                         }
                                     }
-                                    ensureLocalProfile(session)
-                                    requestNotificationPermissionIfNeeded()
-                                    BackgroundSyncScheduler.requestNow(applicationContext)
-                                    showMainApp = true
                                 }
                             )
                         }
