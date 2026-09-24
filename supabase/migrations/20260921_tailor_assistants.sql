@@ -259,7 +259,10 @@ select coalesce(jsonb_agg(jsonb_build_object(
  'expense',d.expense,'note',d.notes,'status',d.status,'approval_status',d.approval_status
 ) order by d.updated_at desc), '[]'::jsonb)
 from public.assistant_daily_records d
-join public.assistants a on a.record_key=d.assistant_record_key
+join public.assistants a
+  on a.id = r.assistant_id
+ and a.record_key = d.assistant_record_key
+ and a.user_id = d.user_id
 join public.assistant_link_requests r on r.assistant_id=a.id
 where r.assistant_user_id=auth.uid() and r.status='APPROVED' and d.approval_status='APPROVED';
 $f$;
