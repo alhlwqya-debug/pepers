@@ -139,9 +139,18 @@ class SupabaseAuthRepository(private val context: Context) {
             Uri.encode(SupabaseConfig.oauthRedirect) + "&flow_type=implicit"
 
     suspend fun finishGoogleSignIn(callback: Uri): AuthResult = withContext(Dispatchers.IO) {
-        val params = callback.fragment.orEmpty().split("&").mapNotNull { part ->
+        // Supabase may return OAuth results in the URL fragment, while
+        // provider errors can also arrive as query parameters. Accept both so
+        // Android deep-link handling is resilient across browser/provider versions.
+        val rawParams = buildString {
+            append(callback.query.orEmpty())
+            if (callback.query.orEmpty().isNotBlank() && callback.fragment.orEmpty().isNotBlank()) append("&")
+            append(callback.fragment.orEmpty())
+        }
+        val params = rawParams.split("&").mapNotNull { part ->
             val separator = part.indexOf('=')
-            if (separator <= 0) null else part.substring(0, separator) to Uri.decode(part.substring(separator + 1))
+            if (separator <= 0) null
+            else part.substring(0, separator) to Uri.decode(part.substring(separator + 1))
         }.toMap()
         if (!params["error_description"].isNullOrBlank() || !params["error"].isNullOrBlank()) {
             return@withContext AuthResult.Failure(context.getString(R.string.error_google_sign_in))
