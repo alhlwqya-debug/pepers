@@ -27,7 +27,11 @@ internal object BackgroundSyncScheduler {
             .build()
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
             IMMEDIATE_WORK_NAME,
-            androidx.work.ExistingWorkPolicy.REPLACE,
+            // Do not cancel a running sync when Compose/database changes trigger
+            // another request. Cancelling the active worker can leave SQLite in
+            // the middle of a transaction and produces "database is locked".
+            // The running worker always reads the current local database state.
+            androidx.work.ExistingWorkPolicy.KEEP,
             request
         )
     }
