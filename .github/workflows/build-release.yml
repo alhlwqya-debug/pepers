@@ -68,7 +68,9 @@ jobs:
         run: |
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
-          apksigner verify --verbose "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -86,7 +88,6 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
-
           gh release create "$TAG" \
             app/build/outputs/apk/release/*.apk \
             app/build/outputs/bundle/release/*.aab \
