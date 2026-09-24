@@ -123,7 +123,7 @@ internal object LocalDatabaseAccountManager {
         if (!file.exists()) return
         runCatching {
             SQLiteDatabase.openDatabase(
-                file.absolutePath, null, SQLiteDatabase.OPEN_READWRITE
+                file.absolutePath, null, SQLiteDatabase.OPEN_READWRITE or SQLiteDatabase.CREATE_IF_NECESSARY
             ).use { db ->
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS $BINDING_TABLE$ (" +
