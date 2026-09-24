@@ -80,8 +80,16 @@ internal class BackgroundSyncWorker(
 
             SupabaseSyncManager.sync(context, active)
             Result.success()
-        } catch (_: Exception) {
-            Result.retry()
+        } catch (error: Exception) {
+            android.util.Log.e("PepersSync", "Background cloud sync failed", error)
+            val message = error.message.orEmpty()
+            val retryable =
+                error is java.io.IOException ||
+                error is java.net.SocketTimeoutException ||
+                message.contains("Supabase 408") ||
+                message.contains("Supabase 429") ||
+                message.contains("Supabase 5")
+            if (retryable) Result.retry() else Result.failure()
         }
     }
 }
