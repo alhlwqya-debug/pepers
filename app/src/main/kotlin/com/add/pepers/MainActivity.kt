@@ -115,9 +115,27 @@ class MainActivity : FragmentActivity() {
                                     // Supabase REST calls are disk/network work. Never run them from
                                     // the Compose/UI thread; doing so causes skipped frames and ANR.
                                     lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                        val session = authRepository.savedSession()
-                                        if (session != null) {
-                                            LocalDatabaseAccountManager.activateUser(applicationContext, session.userId)
+                                        try {
+                                            val session = authRepository.savedSession()
+                                            if (session == null) {
+                                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                    Toast.makeText(
+                                                        this@MainActivity,
+                                                        "تمت المصادقة لكن تعذر استعادة جلسة الحساب. حاول تسجيل الدخول مرة أخرى.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                                return@launch
+                                            }
+
+                                            // Authentication has already succeeded at this point.
+                                            // Local DB binding and cloud sync must never prevent the
+                                            // authenticated user from reaching the workspace.
+                                            runCatching {
+                                                LocalDatabaseAccountManager.activateUser(applicationContext, session.userId)
+                                            }.onFailure {
+                                                android.util.Log.e("PepersAuth", "Initial local account activation failed", it)
+                                            }
 
                                             val restored = runCatching {
                                                 authRepository.restoreSession()
@@ -127,11 +145,15 @@ class MainActivity : FragmentActivity() {
                                                 else -> authRepository.savedSession() ?: session
                                             }
 
-                                            LocalDatabaseAccountManager.activateUser(applicationContext, activeSession.userId)
+                                            runCatching {
+                                                LocalDatabaseAccountManager.activateUser(applicationContext, activeSession.userId)
+                                            }.onFailure {
+                                                android.util.Log.e("PepersAuth", "Final local account activation failed", it)
+                                            }
 
                                             val syncSession = SupabaseSessionStore.load(applicationContext)
-                                            val syncResult = if (syncSession != null) {
-                                                runCatching {
+                                            if (syncSession != null) {
+                                                val syncResult = runCatching {
                                                     try {
                                                         SupabaseSyncManager.sync(applicationContext, syncSession)
                                                     } catch (error: IllegalStateException) {
@@ -145,18 +167,16 @@ class MainActivity : FragmentActivity() {
                                                         }
                                                     }
                                                 }
-                                            } else {
-                                                null
-                                            }
 
-                                            syncResult?.exceptionOrNull()?.let { error ->
-                                                android.util.Log.e("PepersSync", "Cloud sync failed", error)
-                                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                    Toast.makeText(
-                                                        this@MainActivity,
-                                                        "تعذر مزامنة بيانات الحساب الآن. سيتم الاحتفاظ بالبيانات المحلية.",
-                                                        Toast.LENGTH_LONG
-                                                    ).show()
+                                                syncResult.exceptionOrNull()?.let { error ->
+                                                    android.util.Log.e("PepersSync", "Cloud sync failed after authentication", error)
+                                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                        Toast.makeText(
+                                                            this@MainActivity,
+                                                            "تم تسجيل الدخول، لكن تعذرت المزامنة الآن. ستبقى بياناتك المحلية محفوظة.",
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                    }
                                                 }
                                             }
 
@@ -165,6 +185,18 @@ class MainActivity : FragmentActivity() {
                                                 requestNotificationPermissionIfNeeded()
                                                 BackgroundSyncScheduler.requestNow(applicationContext)
                                                 showMainApp = true
+                                            }
+                                        } catch (error: Throwable) {
+                                            android.util.Log.e("PepersAuth", "Post-authentication startup failed", error)
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                ensureLocalProfile(authRepository.savedSession())
+                                                requestNotificationPermissionIfNeeded()
+                                                showMainApp = true
+                                                Toast.makeText(
+                                                    this@MainActivity,
+                                                    "تم تسجيل الدخول. حدث خطأ أثناء التهيئة وسيتم إصلاح المزامنة لاحقًا.",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
                                             }
                                         }
                                     }
