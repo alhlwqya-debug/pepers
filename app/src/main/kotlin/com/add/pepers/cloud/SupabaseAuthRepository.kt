@@ -320,7 +320,6 @@ class SupabaseAuthRepository(private val context: Context) {
     }
 
     private fun saveSession(session: AuthSession) {
-        LocalDatabaseAccountManager.activateUser(context, session.userId)
         preferences.edit()
             .putString("access_token", session.accessToken)
             .putString("refresh_token", session.refreshToken)
