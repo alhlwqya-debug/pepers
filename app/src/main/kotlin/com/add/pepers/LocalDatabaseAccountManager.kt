@@ -120,7 +120,7 @@ internal object LocalDatabaseAccountManager {
         )
 
     private fun bindDatabase(file: File, userId: String) {
-        if (!file.exists()) return
+        file.parentFile?.mkdirs()
         runCatching {
             SQLiteDatabase.openDatabase(
                 file.absolutePath, null, SQLiteDatabase.OPEN_READWRITE or SQLiteDatabase.CREATE_IF_NECESSARY
