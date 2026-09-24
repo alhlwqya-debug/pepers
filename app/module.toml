@@ -46,5 +46,5 @@ versionCode = 4
 versionName = "1.2.1"
 isApplication = true
 manifestPlaceholders = []
-buildTypes = [{ name = "debug", debuggable = true, minifyEnabled = false, shrinkResources = false, applicationIdSuffix = ".debug", versionNameSuffix = "-debug" }, { name = "release", debuggable = false, minifyEnabled = true, shrinkResources = true, proguardFiles = ["proguard-android-optimize.txt", "proguard-rules.pro"] }]
+buildTypes = [{ name = "debug", debuggable = true, minifyEnabled = false, shrinkResources = false, applicationIdSuffix = ".debug", versionNameSuffix = "-debug" }, { name = "release", debuggable = false, minifyEnabled = false, shrinkResources = false, proguardFiles = ["proguard-android-optimize.txt", "proguard-rules.pro"] }]
 compose = true
