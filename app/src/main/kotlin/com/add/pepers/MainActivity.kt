@@ -180,6 +180,16 @@ class MainActivity : FragmentActivity() {
                                                 }
                                             }
 
+                                            runCatching {
+                                                AccountContextStore.resolve(
+                                                    applicationContext,
+                                                    activeSession.userId,
+                                                    activeSession.role
+                                                )
+                                            }.onFailure {
+                                                android.util.Log.e("PepersAuth", "Account context resolution failed", it)
+                                            }
+
                                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                                 ensureLocalProfile(activeSession)
                                                 requestNotificationPermissionIfNeeded()
