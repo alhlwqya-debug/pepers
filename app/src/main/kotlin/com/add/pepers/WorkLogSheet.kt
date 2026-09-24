@@ -1078,7 +1078,6 @@ fun WorkLogSheet() {
                             if (accountContext?.shopId == deletedShopId) {
                                 AccountContextStore.setCurrentShop(context, null)
                             }
-                            SmartShopMemory.clear(context)
                         }
                         showDeleteShopDialog = false
                         selectedShopId = null
