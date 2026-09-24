@@ -5,6 +5,8 @@ import android.net.Uri
 import android.util.Patterns
 import com.add.pepers.LocalDatabaseAccountManager
 import com.add.pepers.R
+import com.add.pepers.SupabaseSession
+import com.add.pepers.SupabaseSessionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -320,6 +322,9 @@ class SupabaseAuthRepository(private val context: Context) {
     }
 
     private fun saveSession(session: AuthSession) {
+        // Keep the authentication repository and the cloud-sync session store
+        // in lockstep. WorkLogSheet/SupabaseSyncManager use the latter to
+        // decide whether an authenticated account already has cloud data.
         preferences.edit()
             .putString("access_token", session.accessToken)
             .putString("refresh_token", session.refreshToken)
@@ -328,6 +333,21 @@ class SupabaseAuthRepository(private val context: Context) {
             .putString("role", session.role)
             .putLong("expires_at", session.expiresAt)
             .apply()
+
+        if (session.accessToken.isNotBlank() &&
+            session.refreshToken.isNotBlank() &&
+            session.userId.isNotBlank()
+        ) {
+            SupabaseSessionStore.save(
+                context,
+                SupabaseSession(
+                    accessToken = session.accessToken,
+                    refreshToken = session.refreshToken,
+                    userId = session.userId,
+                    expiresAt = session.expiresAt
+                )
+            )
+        }
     }
 
     fun savedSession(): AuthSession? {
@@ -348,6 +368,7 @@ class SupabaseAuthRepository(private val context: Context) {
         LocalDatabaseAccountManager.snapshotActiveUser(context, currentUserId)
         LocalDatabaseAccountManager.clearActiveProfile(context)
         preferences.edit().clear().apply()
+        SupabaseSessionStore.clear(context)
     }
 
     private fun saveProfile(name: String, phone: String, email: String) {
