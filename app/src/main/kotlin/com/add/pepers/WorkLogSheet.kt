@@ -151,10 +151,27 @@ fun WorkLogSheet() {
     var showPieceManager by remember { mutableStateOf(false) } // ✅ جديد
     var showExpenseDialog by remember { mutableStateOf(false) }
     var showUserProfile by remember { mutableStateOf(userName.isBlank() && shops.isNotEmpty()) }
-    var showFirstSetup by remember {
-        mutableStateOf(
-            shops.isEmpty() && !prefs.getBoolean(firstSetupKey, false)
-        )
+    var showFirstSetup by remember { mutableStateOf(false) }
+    var checkingFirstSetup by remember { mutableStateOf(shops.isEmpty()) }
+
+    // لا نعتبر قاعدة محلية فارغة دليلاً على أن الحساب جديد.
+    // عند تسجيل الدخول من جهاز آخر قد تكون البيانات السحابية موجودة
+    // بينما لم تُستعد قاعدة SQLite بعد.
+    LaunchedEffect(accountKey, shops.size) {
+        if (shops.isNotEmpty() || prefs.getBoolean(firstSetupKey, false)) {
+            showFirstSetup = false
+            checkingFirstSetup = false
+        } else {
+            checkingFirstSetup = true
+            val session = SupabaseSessionStore.load(context)
+            val remoteHasShops = session?.let { SupabaseSyncManager.hasRemoteShops(it) }
+            showFirstSetup = when {
+                session == null -> true
+                remoteHasShops == false -> true
+                else -> false
+            }
+            checkingFirstSetup = false
+        }
     }
     var showStatistics by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
@@ -621,6 +638,30 @@ fun WorkLogSheet() {
 
     // إعداد الحساب الجديد: محل + شهر + أيام العمل + مساعد اختياري.
     // بعد إكماله لا يظهر مرة أخرى لهذا الحساب.
+    if (checkingFirstSetup && shops.isEmpty()) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("استعادة مساحة العمل", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CircularProgressIndicator()
+                    Text("جارٍ التحقق من بيانات حسابك السحابية…", textAlign = TextAlign.Center)
+                    Text(
+                        "لن نطلب منك إنشاء محل جديد قبل التأكد من عدم وجود محل محفوظ في حسابك.",
+                        fontSize = 11.sp,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = { }
+        )
+    }
+
     if (showFirstSetup) {
         FirstSetupWizard(
             database = database,
@@ -630,8 +671,11 @@ fun WorkLogSheet() {
                 prefs.edit().putBoolean(firstSetupKey, true).apply()
                 showFirstSetup = false
                 refreshAll()
-                selectedShopId?.let { SmartShopMemory.rememberShop(context, it) }
-                selectedMonthId = months.firstOrNull()?.id
+                val newShopId = database.getShops().firstOrNull()?.id
+                selectedShopId = newShopId
+                newShopId?.let { SmartShopMemory.rememberShop(context, it) }
+                val refreshedMonths = newShopId?.let(database::getMonths).orEmpty()
+                selectedMonthId = refreshedMonths.firstOrNull()?.id
                 bundle = selectedMonthId?.let(database::loadMonthBundle)
                 Toast.makeText(context, "تم إعداد المحل والشهر وأيام العمل. يمكنك البدء الآن.", Toast.LENGTH_LONG).show()
             }
