@@ -349,7 +349,7 @@ fun WorkLogSheet() {
 
     // ===== تأثيرات =====
     LaunchedEffect(selectedShopId) {
-        selectedShopId?.let { SmartShopMemory.rememberShop(context, it) }
+        selectedShopId?.let { rememberCurrentShop(it) }
         registrationMode = selectedShopId?.let { id ->
             shops.firstOrNull { it.id == id }?.registrationMode
         } ?: RegistrationMode.NUMERIC
@@ -450,7 +450,6 @@ fun WorkLogSheet() {
                 onMenu = { drawerOpen = true },
                 onShopMenu = { shopMenuOpen = true },
                 onSelectShop = { id ->
-                    rememberCurrentShop(id)
                     rememberCurrentShop(id)
                     selectedShopId = id
                     registrationMode = database.getShops().firstOrNull { it.id == id }?.registrationMode ?: RegistrationMode.NUMERIC
