@@ -197,6 +197,24 @@ internal object SupabaseSyncManager {
     }
 
     /**
+     * Checks whether the authenticated account already owns a cloud workspace.
+     * A null result means the cloud could not be checked; callers must not
+     * interpret that as "new account".
+     */
+    suspend fun hasRemoteShops(session: SupabaseSession): Boolean? = withContext(Dispatchers.IO) {
+        try {
+            val response = SupabaseHttp.request(
+                method = "GET",
+                path = "/rest/v1/shops?select=id&user_id=eq." + session.userId + "&limit=1",
+                session = session
+            )
+            (response.optJSONArray("data")?.length() ?: 0) > 0
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * Use the actual production unique identity for legacy-compatible tables.
      * These constraints predate record_key and must remain the conflict target
      * so PostgREST can perform a true merge instead of returning HTTP 409.
