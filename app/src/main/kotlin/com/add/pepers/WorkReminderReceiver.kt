@@ -9,39 +9,45 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.add.pepers.cloud.SupabaseAuthRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class WorkReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
+        val pendingResult = goAsync()
         val appContext = context.applicationContext
-        val prefs = appContext.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE)
-        val enabled = prefs.getBoolean("daily_work_reminder_enabled", true)
 
-        if (!enabled) {
-            WorkReminderScheduler.cancel(appContext)
-            return
-        }
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val prefs = appContext.getSharedPreferences("add_paper_user", Context.MODE_PRIVATE)
+                val enabled = prefs.getBoolean("daily_work_reminder_enabled", true)
 
-        val session = SupabaseAuthRepository(appContext).savedSession()
+                if (!enabled) {
+                    WorkReminderScheduler.cancel(appContext)
+                    return@launch
+                }
 
-        // Do not inspect local data while no account is authenticated. This also
-        // prevents a scheduled receiver from touching the previous account after logout.
-        if (session == null) {
-            WorkReminderScheduler.schedule(appContext)
-            return
-        }
+                val session = SupabaseAuthRepository(appContext).savedSession()
+                if (session == null) {
+                    WorkReminderScheduler.schedule(appContext)
+                    return@launch
+                }
 
-        LocalDatabaseAccountManager.activateUser(appContext, session.userId)
-        val database = Database(appContext)
+                LocalDatabaseAccountManager.activateUser(appContext, session.userId)
+                Database(appContext).use { database ->
+                    if (!database.hasWorkRecordedToday()) {
+                        showNotification(appContext)
+                    }
+                }
 
-        try {
-            if (!database.hasWorkRecordedToday()) {
-                showNotification(appContext)
+                WorkReminderScheduler.schedule(appContext)
+            } catch (error: Exception) {
+                android.util.Log.e("PepersReminder", "Reminder check failed", error)
+            } finally {
+                pendingResult.finish()
             }
-        } finally {
-            database.close()
         }
-
-        WorkReminderScheduler.schedule(appContext)
     }
 
     private fun showNotification(context: Context) {
@@ -93,6 +99,7 @@ class WorkReminderReceiver : BroadcastReceiver() {
         }
     }
 }
+
 
 object WorkReminderScheduler {
     const val CHANNEL_ID = "daily_work_reminder"
