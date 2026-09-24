@@ -112,7 +112,8 @@ fun WorkLogSheet() {
     var shops by remember { mutableStateOf(database.getShops()) }
     var selectedShopId by remember {
         mutableStateOf(
-            SmartShopMemory.lastShopId(context)?.takeIf { savedId -> shops.any { it.id == savedId } }
+            AccountContextStore.load(context)?.shopId?.takeIf { savedId -> shops.any { it.id == savedId } }
+                ?: SmartShopMemory.lastShopId(context)?.takeIf { savedId -> shops.any { it.id == savedId } }
                 ?: shops.firstOrNull()?.id
         )
     }
@@ -288,14 +289,21 @@ fun WorkLogSheet() {
     }
 
     // ===== دوال التحديث =====
+    fun rememberCurrentShop(id: Long) {
+        SmartShopMemory.rememberShop(context, id)
+        AccountContextStore.setCurrentShop(context, id)
+    }
+
     fun reloadShops() {
         shops = database.getShops()
         if (shops.none { it.id == selectedShopId }) {
-            selectedShopId = SmartShopMemory.lastShopId(context)?.takeIf { savedId ->
+            selectedShopId = AccountContextStore.load(context)?.shopId?.takeIf { savedId ->
+                shops.any { it.id == savedId }
+            } ?: SmartShopMemory.lastShopId(context)?.takeIf { savedId ->
                 shops.any { it.id == savedId }
             } ?: shops.firstOrNull()?.id
         }
-        selectedShopId?.let { SmartShopMemory.rememberShop(context, it) }
+        selectedShopId?.let { rememberCurrentShop(it) }
         registrationMode = selectedShopId?.let { id ->
             shops.firstOrNull { it.id == id }?.registrationMode
         } ?: RegistrationMode.NUMERIC
@@ -442,7 +450,8 @@ fun WorkLogSheet() {
                 onMenu = { drawerOpen = true },
                 onShopMenu = { shopMenuOpen = true },
                 onSelectShop = { id ->
-                    SmartShopMemory.rememberShop(context, id)
+                    rememberCurrentShop(id)
+                    rememberCurrentShop(id)
                     selectedShopId = id
                     registrationMode = database.getShops().firstOrNull { it.id == id }?.registrationMode ?: RegistrationMode.NUMERIC
                     shopMenuOpen = false
@@ -674,7 +683,7 @@ fun WorkLogSheet() {
                 refreshAll()
                 val newShopId = database.getShops().firstOrNull()?.id
                 selectedShopId = newShopId
-                newShopId?.let { SmartShopMemory.rememberShop(context, it) }
+                newShopId?.let { rememberCurrentShop(it) }
                 val refreshedMonths = newShopId?.let(database::getMonths).orEmpty()
                 selectedMonthId = refreshedMonths.firstOrNull()?.id
                 bundle = selectedMonthId?.let(database::loadMonthBundle)
@@ -792,7 +801,7 @@ fun WorkLogSheet() {
                                 registrationNumber = registrationNumber
                             )
                             if (id > 0L) {
-                                SmartShopMemory.rememberShop(context, id)
+                                rememberCurrentShop(id)
                                 selectedShopId = id
                                 selectedMonthId = null
                                 bundle = null
