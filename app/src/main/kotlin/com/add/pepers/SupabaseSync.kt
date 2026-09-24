@@ -753,7 +753,11 @@ private object LocalSyncSnapshot {
     ): JSONObject {
         val recordKey = overrideKey ?: value.optString("record_key")
         value.put("record_key", recordKey)
-        if (recordKey.contains(":")) value.put("source_device_id", recordKey.substringBefore(":"))
+        // Do not derive the device from a synthetic key such as profile:<userId>.
+        // If the caller already supplied the real device id, preserve it.
+        if (value.optString("source_device_id").isBlank() && recordKey.contains(":")) {
+            value.put("source_device_id", recordKey.substringBefore(":"))
+        }
         value.remove("updated_at")
         val hash = sha256(value.toString())
 
