@@ -178,7 +178,7 @@ internal object SupabaseSyncManager {
             try {
                 SupabaseHttp.request(
                     method = "POST",
-                    path = if (table == "user_profiles") "/rest/v1/$table?on_conflict=user_id" else "/rest/v1/$table?on_conflict=user_id,record_key",
+                    path = "/rest/v1/$table?on_conflict=" + conflictColumns(table),
                     body = rows.toString(),
                     session = session,
                     prefer = "resolution=merge-duplicates,return=minimal",
@@ -194,6 +194,19 @@ internal object SupabaseSyncManager {
         }
         LocalSyncImporter.apply(context, remote, SupabaseSessionStore.deviceId(context))
         return SyncResult(uploaded, "تمت مزامنة $uploaded سجلًا")
+    }
+
+    /**
+     * Use the actual production unique identity for legacy-compatible tables.
+     * These constraints predate record_key and must remain the conflict target
+     * so PostgREST can perform a true merge instead of returning HTTP 409.
+     */
+    private fun conflictColumns(table: String): String = when (table) {
+        "user_profiles" -> "user_id"
+        "days" -> "user_id,month_legacy_id,date_value"
+        "entries" -> "user_id,day_legacy_id,piece_legacy_id"
+        "individual_entry_items" -> "user_id,entry_legacy_id,piece_legacy_id"
+        else -> "user_id,record_key"
     }
 
     private suspend fun downloadRemote(session: SupabaseSession): Map<String, JSONArray> = withContext(Dispatchers.IO) {
