@@ -175,13 +175,17 @@ internal object SupabaseSyncManager {
         for (table in order) {
             val rows = snapshot[table] ?: JSONArray()
             if (rows.length() == 0) continue
-            SupabaseHttp.request(
-                method = "POST",
-                path = if (table == "user_profiles") "/rest/v1/$table?on_conflict=user_id" else "/rest/v1/$table?on_conflict=user_id,record_key",
-                body = rows.toString(),
-                session = session,
-                prefer = "resolution=merge-duplicates,return=minimal",
-            )
+            try {
+                SupabaseHttp.request(
+                    method = "POST",
+                    path = if (table == "user_profiles") "/rest/v1/$table?on_conflict=user_id" else "/rest/v1/$table?on_conflict=user_id,record_key",
+                    body = rows.toString(),
+                    session = session,
+                    prefer = "resolution=merge-duplicates,return=minimal",
+                )
+            } catch (error: IllegalStateException) {
+                throw IllegalStateException("فشل رفع جدول $table إلى السحابة: " + error.message, error)
+            }
             uploaded += rows.length()
         }
         val remote = downloadRemote(session)
