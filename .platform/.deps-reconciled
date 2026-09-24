@@ -1,4 +1,5 @@
 v=4
+g=2
 repos=https://repo1.maven.org/maven2,https://dl.google.com/android/maven2
 app|androidx.activity:activity-compose:1.9.3|
 app|androidx.biometric:biometric:1.1.0|
@@ -8,7 +9,9 @@ app|androidx.compose.material:material-icons-core:1.7.5|
 app|androidx.compose.material:material-icons-extended:1.7.5|
 app|androidx.compose.ui:ui:1.7.5|
 app|androidx.core:core-ktx:1.12.0|
+app|androidx.fragment:fragment-ktx:1.8.5|
 app|androidx.work:work-runtime-ktx:2.10.1|
+app|kotlin-stdlib|
 app|org.jetbrains.kotlin:kotlin-stdlib:2.2.21|
 app|org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3|
 app|org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3|

@@ -12,7 +12,7 @@
         "../../.platform/caches/resolved-deps/androidx/compose/ui/ui-android/1.7.5/ui-android-1.7.5-exploded/classes.jar",
         "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-viewmodel-android/2.8.3/lifecycle-viewmodel-android-2.8.3-exploded/classes.jar",
         "../../.platform/caches/resolved-deps/androidx/activity/activity/1.9.3/activity-1.9.3-exploded/classes.jar",
-        "../../.platform/caches/resolved-deps/androidx/core/core-ktx/1.12.0/core-ktx-1.12.0-exploded/classes.jar",
+        "../../.platform/caches/resolved-deps/androidx/core/core-ktx/1.13.1/core-ktx-1.13.1-exploded/classes.jar",
         "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-runtime-ktx-android/2.8.3/lifecycle-runtime-ktx-android-2.8.3-exploded/classes.jar",
         "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-viewmodel-ktx/2.8.3/lifecycle-viewmodel-ktx-2.8.3-exploded/classes.jar",
         "../../.platform/caches/resolved-deps/androidx/savedstate/savedstate-ktx/1.2.1/savedstate-ktx-1.2.1-exploded/classes.jar",
@@ -59,7 +59,7 @@
         "../../.platform/caches/resolved-deps/androidx/compose/ui/ui/1.7.5/ui-1.7.5-sources.jar",
         "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-viewmodel/2.6.1/lifecycle-viewmodel-2.6.1-sources.jar",
         "../../.platform/caches/resolved-deps/androidx/activity/activity/1.9.3/activity-1.9.3-sources.jar",
-        "../../.platform/caches/resolved-deps/androidx/core/core-ktx/1.12.0/core-ktx-1.12.0-sources.jar",
+        "../../.platform/caches/resolved-deps/androidx/core/core-ktx/1.13.0/core-ktx-1.13.0-sources.jar",
         "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-runtime-ktx/2.8.3/lifecycle-runtime-ktx-2.8.3-sources.jar",
         "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-viewmodel-ktx/2.6.1/lifecycle-viewmodel-ktx-2.6.1-sources.jar",
         "../../.platform/caches/resolved-deps/androidx/savedstate/savedstate-ktx/1.2.1/savedstate-ktx-1.2.1-sources.jar",
@@ -104,29 +104,19 @@
       "kind": "AAR",
       "classes": [
         "../../.platform/caches/resolved-deps/androidx/biometric/biometric/1.1.0/biometric-1.1.0-exploded/classes.jar",
-        "../../.platform/caches/resolved-deps/androidx/fragment/fragment/1.2.5/fragment-1.2.5-exploded/classes.jar",
         "../../.platform/caches/resolved-deps/androidx/appcompat/appcompat/1.2.0/appcompat-1.2.0-exploded/classes.jar",
-        "../../.platform/caches/resolved-deps/androidx/viewpager/viewpager/1.0.0/viewpager-1.0.0-exploded/classes.jar",
-        "../../.platform/caches/resolved-deps/androidx/loader/loader/1.0.0/loader-1.0.0-exploded/classes.jar",
         "../../.platform/caches/resolved-deps/androidx/cursoradapter/cursoradapter/1.0.0/cursoradapter-1.0.0-exploded/classes.jar",
         "../../.platform/caches/resolved-deps/androidx/appcompat/appcompat-resources/1.2.0/appcompat-resources-1.2.0-exploded/classes.jar",
         "../../.platform/caches/resolved-deps/androidx/drawerlayout/drawerlayout/1.0.0/drawerlayout-1.0.0-exploded/classes.jar",
-        "../../.platform/caches/resolved-deps/androidx/customview/customview/1.0.0/customview-1.0.0-exploded/classes.jar",
-        "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-livedata/2.8.3/lifecycle-livedata-2.8.3-exploded/classes.jar",
         "../../.platform/caches/resolved-deps/androidx/vectordrawable/vectordrawable/1.1.0/vectordrawable-1.1.0-exploded/classes.jar",
         "../../.platform/caches/resolved-deps/androidx/vectordrawable/vectordrawable-animated/1.1.0/vectordrawable-animated-1.1.0-exploded/classes.jar"
       ],
       "sources": [
         "../../.platform/caches/resolved-deps/androidx/biometric/biometric/1.1.0/biometric-1.1.0-sources.jar",
-        "../../.platform/caches/resolved-deps/androidx/fragment/fragment/1.2.5/fragment-1.2.5-sources.jar",
         "../../.platform/caches/resolved-deps/androidx/appcompat/appcompat/1.2.0/appcompat-1.2.0-sources.jar",
-        "../../.platform/caches/resolved-deps/androidx/viewpager/viewpager/1.0.0/viewpager-1.0.0-sources.jar",
-        "../../.platform/caches/resolved-deps/androidx/loader/loader/1.0.0/loader-1.0.0-sources.jar",
         "../../.platform/caches/resolved-deps/androidx/cursoradapter/cursoradapter/1.0.0/cursoradapter-1.0.0-sources.jar",
         "../../.platform/caches/resolved-deps/androidx/appcompat/appcompat-resources/1.2.0/appcompat-resources-1.2.0-sources.jar",
         "../../.platform/caches/resolved-deps/androidx/drawerlayout/drawerlayout/1.0.0/drawerlayout-1.0.0-sources.jar",
-        "../../.platform/caches/resolved-deps/androidx/customview/customview/1.0.0/customview-1.0.0-sources.jar",
-        "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-livedata/2.6.2/lifecycle-livedata-2.6.2-sources.jar",
         "../../.platform/caches/resolved-deps/androidx/vectordrawable/vectordrawable/1.1.0/vectordrawable-1.1.0-sources.jar",
         "../../.platform/caches/resolved-deps/androidx/vectordrawable/vectordrawable-animated/1.1.0/vectordrawable-animated-1.1.0-sources.jar"
       ]
@@ -171,6 +161,28 @@
       ],
       "sources": [
         "../../.platform/caches/resolved-deps/androidx/compose/material/material-icons-extended/1.7.5/material-icons-extended-1.7.5-sources.jar"
+      ]
+    },
+    {
+      "name": "androidx.fragment:fragment-ktx:1.8.5",
+      "kind": "AAR",
+      "classes": [
+        "../../.platform/caches/resolved-deps/androidx/fragment/fragment-ktx/1.8.5/fragment-ktx-1.8.5-exploded/classes.jar",
+        "../../.platform/caches/resolved-deps/androidx/fragment/fragment/1.8.5/fragment-1.8.5-exploded/classes.jar",
+        "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-livedata-core-ktx/2.8.3/lifecycle-livedata-core-ktx-2.8.3-exploded/classes.jar",
+        "../../.platform/caches/resolved-deps/androidx/loader/loader/1.0.0/loader-1.0.0-exploded/classes.jar",
+        "../../.platform/caches/resolved-deps/androidx/viewpager/viewpager/1.0.0/viewpager-1.0.0-exploded/classes.jar",
+        "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-livedata/2.8.3/lifecycle-livedata-2.8.3-exploded/classes.jar",
+        "../../.platform/caches/resolved-deps/androidx/customview/customview/1.0.0/customview-1.0.0-exploded/classes.jar"
+      ],
+      "sources": [
+        "../../.platform/caches/resolved-deps/androidx/fragment/fragment-ktx/1.8.5/fragment-ktx-1.8.5-sources.jar",
+        "../../.platform/caches/resolved-deps/androidx/fragment/fragment/1.8.5/fragment-1.8.5-sources.jar",
+        "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-livedata-core-ktx/2.6.1/lifecycle-livedata-core-ktx-2.6.1-sources.jar",
+        "../../.platform/caches/resolved-deps/androidx/loader/loader/1.0.0/loader-1.0.0-sources.jar",
+        "../../.platform/caches/resolved-deps/androidx/viewpager/viewpager/1.0.0/viewpager-1.0.0-sources.jar",
+        "../../.platform/caches/resolved-deps/androidx/lifecycle/lifecycle-livedata/2.6.2/lifecycle-livedata-2.6.2-sources.jar",
+        "../../.platform/caches/resolved-deps/androidx/customview/customview/1.0.0/customview-1.0.0-sources.jar"
       ]
     },
     {
