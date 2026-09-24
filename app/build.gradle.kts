@@ -65,6 +65,8 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.21")
 
     implementation("androidx.activity:activity-compose:1.9.3")
+    // Keep FragmentActivity compatible with Activity Result API request-code handling.
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("androidx.compose.ui:ui:1.7.5")
     implementation("androidx.compose.foundation:foundation:1.7.5")
     implementation("androidx.compose.material3:material3:1.3.1")
