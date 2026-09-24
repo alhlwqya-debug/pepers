@@ -31,8 +31,10 @@ android {
 
         release {
             isDebuggable = false
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Keep release behavior stable until all runtime reflection/resource
+            // paths are verified. R8 was causing the release APK to crash on launch.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
