@@ -111,14 +111,22 @@ internal object AccountContextStore {
             database.close()
         }
 
+        val accountRole = AccountRole.from(role)
         val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val savedShopId = prefs.getLong(SHOP_ID, -1L).takeIf { it > 0L }
-        val selected = shops.firstOrNull { it.id == savedShopId }
-            ?: shops.firstOrNull()
+        val selected = if (accountRole == AccountRole.ASSISTANT) {
+            // An assistant account does not own the tailor's shop. Its access is
+            // granted through the approved assistant-link RPCs, not by selecting
+            // an owner shop from the local SQLite database.
+            null
+        } else {
+            shops.firstOrNull { it.id == savedShopId }
+                ?: shops.firstOrNull()
+        }
 
         val account = AppAccountContext(
             userId = cleanUserId,
-            role = AccountRole.from(role),
+            role = accountRole,
             shopId = selected?.id,
             shopName = selected?.name.orEmpty(),
             ready = true
