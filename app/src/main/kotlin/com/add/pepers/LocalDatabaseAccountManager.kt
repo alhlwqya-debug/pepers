@@ -133,7 +133,7 @@ internal object LocalDatabaseAccountManager {
                 )
                 db.execSQL(
                     "INSERT OR REPLACE INTO $BINDING_TABLE(id,user_id,bound_at) VALUES(1,?,?)",
-                    arrayOf(userId, System.currentTimeMillis())
+                    arrayOf<Any?>(userId, System.currentTimeMillis())
                 )
             }
         }
