@@ -4,6 +4,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val signingStorePassword = System.getenv("PEPERS_KEYSTORE_PASSWORD")
+val signingKeyPassword = System.getenv("PEPERS_KEY_PASSWORD")
+val signingKeyAlias = System.getenv("PEPERS_KEY_ALIAS") ?: "key0"
+
 android {
     namespace = "com.add.pepers"
     compileSdk = 35
@@ -21,20 +25,30 @@ android {
         }
     }
 
+    signingConfigs {
+        create("sharedRelease") {
+            storeFile = file("release.jks")
+            storePassword = signingStorePassword
+            keyAlias = signingKeyAlias
+            keyPassword = signingKeyPassword
+        }
+    }
+
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             isDebuggable = true
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("sharedRelease")
         }
 
         release {
             isDebuggable = false
-            // Keep release behavior stable until all runtime reflection/resource
-            // paths are verified. R8 was causing the release APK to crash on launch.
+            // Keep release behavior stable until runtime reflection/resource
+            // paths are verified. R8 is intentionally disabled for now.
             isMinifyEnabled = false
             isShrinkResources = false
+            signingConfig = signingConfigs.getByName("sharedRelease")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
