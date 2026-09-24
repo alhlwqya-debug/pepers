@@ -104,6 +104,20 @@ internal object LocalDatabaseAccountManager {
     fun userDatabasePath(context: Context, userId: String): String =
         userDatabaseFile(context.applicationContext, userId).absolutePath
 
+    @Synchronized
+    fun ensureBoundUser(context: Context, userId: String): Boolean {
+        val cleanUserId = userId.trim()
+        if (cleanUserId.isBlank()) return false
+        return runCatching {
+            val active = activeUserId(context)
+            if (active != cleanUserId) activateUser(context, cleanUserId)
+            activeUserId(context) == cleanUserId && ownerMatches(context, cleanUserId)
+        }.getOrDefault(false)
+    }
+
+    private fun ownerMatches(context: Context, userId: String): Boolean =
+        readOwnerMarker(context, userId) == userId
+
     private fun userDatabaseFile(context: Context, userId: String): File {
         val safeId = sha256(userId).take(32)
         return File(
