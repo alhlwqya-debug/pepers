@@ -18,6 +18,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -45,7 +47,7 @@ fun FirstSetupWizard(
     var assistantName by remember { mutableStateOf("") }
     var assistantTask by remember { mutableStateOf("") }
     var assistantStartDate by remember { mutableStateOf(startDate) }
-    var selectedDays by remember { mutableStateOf(setOf(Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.SATURDAY)) }
+    var selectedDays by remember { mutableStateOf(setOf(Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY)) }
     var error by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
 
@@ -59,13 +61,30 @@ fun FirstSetupWizard(
 
     AlertDialog(
         onDismissRequest = { },
-        title = { Text("ابدأ إعداد حسابك") },
+        title = {
+            Column {
+                Text("إعداد مساحة العمل", fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("الخطوة الأولى • بيانات المحل", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+            }
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 570.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "أدخل بيانات المحل والفترة الأولى. بعد الحفظ ستنتقل مباشرة إلى مساحة العمل.",
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Right
+                )
                 Text("أنشئ المحل والشهر وأيام العمل. ويمكنك إنشاء أول مساعد وتاريخ بدايته الآن.", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(shopName, { shopName = it; error = null }, singleLine = true, label = { Text("اسم المحل") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(registrationNumber, { registrationNumber = it; error = null }, singleLine = true, label = { Text("رقم المحل / التسجيل") }, modifier = Modifier.fillMaxWidth())
-                Text("نوع التسجيل")
+                Text("طريقة التسجيل", fontWeight = FontWeight.SemiBold)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { mode = RegistrationMode.NUMERIC }, modifier = Modifier.weight(1f)) { Text(if (mode == RegistrationMode.NUMERIC) "✓ عددي" else "عددي") }
                     OutlinedButton(onClick = { mode = RegistrationMode.INDIVIDUAL }, modifier = Modifier.weight(1f)) { Text(if (mode == RegistrationMode.INDIVIDUAL) "✓ فردي" else "فردي") }
@@ -77,7 +96,7 @@ fun FirstSetupWizard(
                 OutlinedButton(onClick = { pickDate(startDate) { startDate = it; assistantStartDate = it } }, modifier = Modifier.fillMaxWidth()) {
                     Text("تاريخ بداية العمل: $startDate")
                 }
-                Text("أيام العمل في هذا الشهر")
+                Text("أيام العمل", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 listOf(
                     Calendar.SUNDAY to "الأحد", Calendar.MONDAY to "الإثنين",
                     Calendar.TUESDAY to "الثلاثاء", Calendar.WEDNESDAY to "الأربعاء",
@@ -134,6 +153,10 @@ fun FirstSetupWizard(
                 }
             }) { Text("إنشاء والبدء") }
         },
-        dismissButton = null
+        dismissButton = {
+            TextButton(enabled = !saving, onClick = { }) {
+                Text("سيتم حفظه لهذا الحساب")
+            }
+        }
     )
 }
