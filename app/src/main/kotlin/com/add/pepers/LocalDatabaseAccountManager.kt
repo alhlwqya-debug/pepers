@@ -6,83 +6,83 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-/**
- * Keeps the existing SQLite schema intact while isolating local data per
- * authenticated Supabase user.
- *
- * The legacy add_paper.db is preserved. Each authenticated user receives a
- * private SQLite database and a private copy of the profile preferences/image.
- * The existing UI can therefore continue using Database(context) and the
- * existing add_paper_user preferences without exposing another account's data.
- */
 internal object LocalDatabaseAccountManager {
     private const val DATABASE_NAME = "add_paper.db"
     private const val BINDING_PREFS = "pepers_database_binding"
-    private const val OWNER_USER_ID = "legacy_owner_user_id"
     private const val ACTIVE_USER_ID = "active_user_id"
+    private const val PROFILE_PREFS = "add_paper_user"
+    private const val PROFILE_IMAGE_NAME = "profile_image.jpg"
     private const val USER_DB_PREFIX = "pepers_user_"
     private const val USER_PROFILE_PREFIX = "pepers_profile_"
     private const val USER_IMAGE_DIR = "profile_images"
-    private const val PROFILE_PREFS = "add_paper_user"
-    private const val PROFILE_IMAGE_NAME = "profile_image.jpg"
+    private const val QUARANTINE_DIR = "database_quarantine"
+    private const val BINDING_TABLE = "local_account_binding"
 
     @Synchronized
     fun activateUser(context: Context, userId: String) {
         val cleanUserId = userId.trim()
         if (cleanUserId.isBlank()) return
-
-        val appContext = context.applicationContext
-        val prefs = appContext.getSharedPreferences(BINDING_PREFS, Context.MODE_PRIVATE)
+        val app = context.applicationContext
+        val prefs = app.getSharedPreferences(BINDING_PREFS, Context.MODE_PRIVATE)
         val activeUser = prefs.getString(ACTIVE_USER_ID, null).orEmpty()
+        val activeDb = app.getDatabasePath(DATABASE_NAME)
+        val privateDb = userDatabaseFile(app, cleanUserId)
 
-        if (activeUser != cleanUserId) {
-            val activeDb = appContext.getDatabasePath(DATABASE_NAME)
-            val previousUser = activeUser.takeIf { it.isNotBlank() }
-            if (previousUser != null && activeDb.exists()) {
+        if (activeUser.isNotBlank() && activeUser != cleanUserId && activeDb.exists()) {
+            if (isBoundToUser(activeDb, activeUser)) {
                 checkpointDatabase(activeDb)
-                copyDatabase(activeDb, userDatabaseFile(appContext, previousUser))
-                snapshotProfile(appContext, previousUser)
+                copyDatabase(activeDb, userDatabaseFile(app, activeUser))
+                bindDatabase(userDatabaseFile(app, activeUser), activeUser)
+                snapshotProfile(app, activeUser)
+            } else {
+                quarantineDatabase(app, activeDb, "unbound_active")
             }
-
-            val legacyOwner = prefs.getString(OWNER_USER_ID, null).orEmpty()
-            if (legacyOwner.isBlank() && activeDb.exists()) {
-                val privateFile = userDatabaseFile(appContext, cleanUserId)
-                checkpointDatabase(activeDb)
-                copyDatabase(activeDb, privateFile)
-                prefs.edit().putString(OWNER_USER_ID, cleanUserId).apply()
-            }
-
-            replaceActiveDatabase(appContext, userDatabaseFile(appContext, cleanUserId))
-            prefs.edit().putString(ACTIVE_USER_ID, cleanUserId).apply()
         }
 
-        restoreProfile(appContext, cleanUserId)
+        if (privateDb.exists() && !isBoundToUser(privateDb, cleanUserId)) {
+            quarantineDatabase(app, privateDb, "unbound_user")
+        }
+
+        if (activeUser != cleanUserId || !isBoundToUser(activeDb, cleanUserId)) {
+            if (activeDb.exists() && !isBoundToUser(activeDb, cleanUserId)) {
+                quarantineDatabase(app, activeDb, "wrong_account")
+            }
+            replaceActiveDatabase(app, privateDb)
+            bindDatabase(activeDb, cleanUserId)
+            prefs.edit().putString(ACTIVE_USER_ID, cleanUserId).apply()
+        } else {
+            bindDatabase(activeDb, cleanUserId)
+        }
+
+        restoreProfile(app, cleanUserId)
+    }
+
+    @Synchronized
+    fun ensureBoundUser(context: Context, userId: String): Boolean {
+        val cleanUserId = userId.trim()
+        if (cleanUserId.isBlank()) return false
+        activateUser(context, cleanUserId)
+        return isBoundToUser(
+            context.applicationContext.getDatabasePath(DATABASE_NAME),
+            cleanUserId
+        )
     }
 
     @Synchronized
     fun snapshotActiveUser(context: Context, userId: String?) {
         val cleanUserId = userId?.trim().orEmpty()
         if (cleanUserId.isBlank()) return
-
-        val appContext = context.applicationContext
-        val activeDb = appContext.getDatabasePath(DATABASE_NAME)
-        if (activeDb.exists()) {
-            checkpointDatabase(activeDb)
-            copyDatabase(activeDb, userDatabaseFile(appContext, cleanUserId))
-        }
-        snapshotProfile(appContext, cleanUserId)
-    }
-
-    /**
-     * Clears the shared compatibility profile after its current account has
-     * been snapshotted. The per-user profile remains on the device.
-     */
-    @Synchronized
-    fun clearActiveProfile(context: Context) {
-        val appContext = context.applicationContext
-        appContext.getSharedPreferences(PROFILE_PREFS, Context.MODE_PRIVATE).edit().clear().commit()
-        File(appContext.filesDir, PROFILE_IMAGE_NAME).delete()
+        val app = context.applicationContext
+        val activeDb = app.getDatabasePath(DATABASE_NAME)
+        if (!activeDb.exists() || !isBoundToUser(activeDb, cleanUserId)) return
+        checkpointDatabase(activeDb)
+        copyDatabase(activeDb, userDatabaseFile(app, cleanUserId))
+        bindDatabase(userDatabaseFile(app, cleanUserId), cleanUserId)
+        snapshotProfile(app, cleanUserId)
     }
 
     fun activeUserId(context: Context): String? =
@@ -94,53 +94,98 @@ internal object LocalDatabaseAccountManager {
     fun userDatabasePath(context: Context, userId: String): String =
         userDatabaseFile(context.applicationContext, userId).absolutePath
 
+    @Synchronized
+    fun clearActiveProfile(context: Context) {
+        val app = context.applicationContext
+        app.getSharedPreferences(PROFILE_PREFS, Context.MODE_PRIVATE)
+            .edit().clear().commit()
+        File(app.filesDir, PROFILE_IMAGE_NAME).delete()
+    }
+
     private fun userDatabaseFile(context: Context, userId: String): File {
         val safeId = sha256(userId).take(32)
-        return File(context.getDatabasePath(DATABASE_NAME).parentFile, "$USER_DB_PREFIX$safeId.db")
+        return File(
+            context.getDatabasePath(DATABASE_NAME).parentFile,
+            "$USER_DB_PREFIX$$safeId.db"
+        )
     }
 
     private fun userProfileFile(context: Context, userId: String): File =
-        File(context.filesDir, "$USER_PROFILE_PREFIX${sha256(userId).take(32)}.xml")
+        File(context.filesDir, "$USER_PROFILE_PREFIX$${sha256(userId).take(32)}.xml")
 
     private fun userImageFile(context: Context, userId: String): File =
-        File(File(context.filesDir, USER_IMAGE_DIR), "${sha256(userId).take(32)}.jpg")
+        File(
+            File(context.filesDir, USER_IMAGE_DIR),
+            "${sha256(userId).take(32)}.jpg"
+        )
+
+    private fun bindDatabase(file: File, userId: String) {
+        if (!file.exists()) return
+        runCatching {
+            SQLiteDatabase.openDatabase(
+                file.absolutePath, null, SQLiteDatabase.OPEN_READWRITE
+            ).use { db ->
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS $BINDING_TABLE$ (" +
+                        "id INTEGER PRIMARY KEY CHECK(id = 1)," +
+                        "user_id TEXT NOT NULL," +
+                        "bound_at INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "INSERT OR REPLACE INTO $BINDING_TABLE$(id,user_id,bound_at) VALUES(1,?,?)",
+                    arrayOf(userId, System.currentTimeMillis())
+                )
+            }
+        }
+    }
+
+    private fun isBoundToUser(file: File, userId: String): Boolean {
+        if (!file.exists()) return false
+        return runCatching {
+            SQLiteDatabase.openDatabase(
+                file.absolutePath, null, SQLiteDatabase.OPEN_READONLY
+            ).use { db ->
+                var bound = false
+                db.rawQuery(
+                    "SELECT user_id FROM $BINDING_TABLE$ WHERE id = 1 LIMIT 1", null
+                ).use { cursor ->
+                    if (cursor.moveToFirst()) bound = cursor.getString(0) == userId
+                }
+                bound
+            }
+        }.getOrDefault(false)
+    }
 
     private fun snapshotProfile(context: Context, userId: String) {
-        val appContext = context.applicationContext
-        val source = File(appContext.dataDir, "shared_prefs/$PROFILE_PREFS.xml")
-        val target = userProfileFile(appContext, userId)
+        val app = context.applicationContext
+        val source = File(app.dataDir, "shared_prefs/$PROFILE_PREFS$.xml")
+        val target = userProfileFile(app, userId)
         if (source.exists()) {
             target.parentFile?.mkdirs()
             copyFile(source, target)
         }
-
-        val currentImage = File(appContext.filesDir, PROFILE_IMAGE_NAME)
-        val privateImage = userImageFile(appContext, userId)
+        val currentImage = File(app.filesDir, PROFILE_IMAGE_NAME)
+        val privateImage = userImageFile(app, userId)
         if (currentImage.exists()) {
             privateImage.parentFile?.mkdirs()
             copyFile(currentImage, privateImage)
-        } else {
-            privateImage.delete()
         }
     }
 
     private fun restoreProfile(context: Context, userId: String) {
-        val appContext = context.applicationContext
-        val source = userProfileFile(appContext, userId)
-        val target = File(appContext.dataDir, "shared_prefs/$PROFILE_PREFS.xml")
-        appContext.getSharedPreferences(PROFILE_PREFS, Context.MODE_PRIVATE).edit().clear().commit()
+        val app = context.applicationContext
+        val source = userProfileFile(app, userId)
+        val target = File(app.dataDir, "shared_prefs/$PROFILE_PREFS$.xml")
+        app.getSharedPreferences(PROFILE_PREFS, Context.MODE_PRIVATE)
+            .edit().clear().commit()
         if (source.exists()) {
             target.parentFile?.mkdirs()
             copyFile(source, target)
         }
-
-        val privateImage = userImageFile(appContext, userId)
-        val currentImage = File(appContext.filesDir, PROFILE_IMAGE_NAME)
-        if (privateImage.exists()) {
-            copyFile(privateImage, currentImage)
-        } else {
-            currentImage.delete()
-        }
+        val privateImage = userImageFile(app, userId)
+        val currentImage = File(app.filesDir, PROFILE_IMAGE_NAME)
+        if (privateImage.exists()) copyFile(privateImage, currentImage)
+        else currentImage.delete()
     }
 
     private fun replaceActiveDatabase(context: Context, source: File) {
@@ -150,13 +195,29 @@ internal object LocalDatabaseAccountManager {
         if (source.exists()) copyDatabase(source, active) else active.delete()
     }
 
+    private fun quarantineDatabase(context: Context, source: File, reason: String) {
+        if (!source.exists()) return
+        val root = File(context.filesDir, QUARANTINE_DIR)
+        root.mkdirs()
+        val stamp = SimpleDateFormat(
+            "yyyyMMdd_HHmmss_SSS", Locale.US
+        ).format(Date())
+        val target = File(
+            root,
+            "${source.nameWithoutExtension}_${reason}_${stamp}.db"
+        )
+        runCatching {
+            checkpointDatabase(source)
+            copyDatabase(source, target)
+        }
+        deleteDatabaseSidecars(source)
+    }
+
     private fun checkpointDatabase(file: File) {
         if (!file.exists()) return
         runCatching {
             SQLiteDatabase.openDatabase(
-                file.absolutePath,
-                null,
-                SQLiteDatabase.OPEN_READWRITE
+                file.absolutePath, null, SQLiteDatabase.OPEN_READWRITE
             ).use { db ->
                 db.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { }
             }
@@ -186,7 +247,11 @@ internal object LocalDatabaseAccountManager {
     private fun copyFile(source: File, target: File) {
         target.parentFile?.mkdirs()
         FileInputStream(source).use { input ->
-            FileOutputStream(target).use { output -> input.copyTo(output) }
+            FileOutputStream(target).use { output ->
+                input.copyTo(output)
+                output.flush()
+                output.fd.sync()
+            }
         }
     }
 
