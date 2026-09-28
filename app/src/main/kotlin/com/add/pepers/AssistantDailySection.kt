@@ -63,9 +63,9 @@ internal fun AssistantDailySection(
             Column(Modifier.fillMaxWidth().padding(14.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("المساعدون", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Purple)
+                        Text("سجل المساعدين", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Purple)
                         Spacer(Modifier.height(2.dp))
-                        Text("سجل عمل المساعدين — ${day.date}", fontSize = 11.sp, color = AppMuted)
+                        Text("عمل يوم ${day.date}", fontSize = 11.sp, color = AppMuted)
                     }
                     Box(
                         modifier = Modifier
@@ -77,7 +77,7 @@ internal fun AssistantDailySection(
                 }
                 Spacer(Modifier.height(7.dp))
                 Text(
-                    "عدد القطع يُقرأ تلقائيًا من سجل الخياط، لذلك لا يحتاج المساعد إلى إدخال عدد القطع مرة أخرى.",
+                    "الإنتاج يُقرأ من سجل الخياط. أجر المساعد يُحسب من سعره المتفق عليه، بينما المصروف/البدل والسحبيات تحفظ بشكل منفصل.",
                     fontSize = 10.sp,
                     color = AppMuted
                 )
@@ -87,7 +87,7 @@ internal fun AssistantDailySection(
         assistants.forEach { assistant ->
             val record = remember(day.id, assistant.id, refresh) { database.getAssistantDailyRecord(assistant.id, day.id) }
             var status by remember(day.id, assistant.id, refresh) { mutableStateOf(record?.status ?: AssistantDailyStatus.WORKED) }
-            var withdrawal by remember(day.id, assistant.id, refresh) { mutableStateOf(record?.expense?.toString()?.takeIf { it != "0" } ?: "") }
+            var expense by remember(day.id, assistant.id, refresh) { mutableStateOf(record?.expense?.toString()?.takeIf { it != "0" } ?: "") }
             var note by remember(day.id, assistant.id, refresh) { mutableStateOf(record?.expenseNote.orEmpty().ifBlank { record?.notes.orEmpty() }) }
 
             val earned = database.calculateAssistantDayEarned(assistant, bundle, day)
@@ -111,9 +111,17 @@ internal fun AssistantDailySection(
                             Text(assistant.task.ifBlank { "مساعد" }, fontSize = 10.sp, color = AppMuted)
                         }
                         Text(
-                            if (record == null) "غير مسجل" else "محفوظ",
+                            when {
+                                record == null -> "غير مسجل"
+                                record.enteredBy == "ASSISTANT" && record.approvalStatus != "APPROVED" -> "بانتظار الاعتماد"
+                                else -> "معتمد"
+                            },
                             fontSize = 9.sp,
-                            color = if (record == null) AppMuted else Green,
+                            color = when {
+                                record == null -> AppMuted
+                                record.enteredBy == "ASSISTANT" && record.approvalStatus != "APPROVED" -> Purple
+                                else -> Green
+                            },
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -133,8 +141,8 @@ internal fun AssistantDailySection(
 
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        AssistantInput(withdrawal, "السحبية / المصروف", KeyboardType.Number, Modifier.weight(1f)) {
-                            withdrawal = it.filter(Char::isDigit)
+                        AssistantInput(expense, "مصروف / بدل اليوم", KeyboardType.Number, Modifier.weight(1f)) {
+                            expense = it.filter(Char::isDigit)
                         }
                         AssistantInput(note, "ملاحظة اختيارية", KeyboardType.Text, Modifier.weight(1f)) {
                             note = it
@@ -144,7 +152,7 @@ internal fun AssistantDailySection(
                     Spacer(Modifier.height(9.dp))
                     Button(
                         onClick = {
-                            database.setAssistantDailyEntry(assistant.id, day.id, status, withdrawal.toIntOrNull() ?: 0, note, piecesCount)
+                            database.setAssistantDailyEntry(assistant.id, day.id, status, expense.toIntOrNull() ?: 0, note, piecesCount)
                             refresh++
                             onSaved()
                         },
@@ -159,8 +167,8 @@ internal fun AssistantDailySection(
                     if (!compact) {
                         Spacer(Modifier.height(5.dp))
                         Text(
-                            if (record == null) "يمكن تعديل البيانات قبل الحفظ."
-                            else "تم تحديث السجل المشترك لهذا اليوم؛ لن يتم إنشاء سجل يومي مكرر.",
+                            if (record == null) "يُعتمد السجل مباشرة عند إدخاله من الخياط. إدخال المساعد المنفصل يظهر بانتظار الاعتماد."
+                            else "السحبيات لا تُسجل هنا؛ تتم من قسم السحبيات في حساب المساعد.",
                             fontSize = 9.sp,
                             color = if (record == null) AppMuted else Purple
                         )
