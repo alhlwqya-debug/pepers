@@ -7,14 +7,9 @@ import kotlinx.coroutines.withContext
 /**
  * Single source of truth for the currently authenticated application context.
  *
- * The app has three different identities that must never be mixed:
- * - userId: Supabase account identity.
- * - shopId: local shop/workspace identity.
- * - role: TAILOR or ASSISTANT.
- *
- * This object does not grant permissions by itself. It only resolves and stores
- * the current context so screens, reports and sharing flows can use the same
- * account/shop selection instead of reading unrelated preferences independently.
+ * userId = Supabase account identity.
+ * shopId  = local shop/workspace identity.
+ * role    = TAILOR or ASSISTANT.
  */
 data class AppAccountContext(
     val userId: String,
@@ -39,6 +34,7 @@ internal object AccountContextStore {
     private const val USER_ID = "user_id"
     private const val ROLE = "role"
     private const val SHOP_ID = "shop_id"
+    private const val SHOP_NAME = "shop_name"
 
     fun save(context: Context, account: AppAccountContext) {
         context.applicationContext
@@ -46,6 +42,7 @@ internal object AccountContextStore {
             .edit()
             .putString(USER_ID, account.userId)
             .putString(ROLE, account.role.name)
+            .putString(SHOP_NAME, account.shopName)
             .apply {
                 if (account.shopId != null) putLong(SHOP_ID, account.shopId)
                 else remove(SHOP_ID)
@@ -53,6 +50,10 @@ internal object AccountContextStore {
             .apply()
     }
 
+    /**
+     * Fast, read-only access used by Compose/UI code.
+     * Never opens SQLite here: this method may be called from the main thread.
+     */
     fun load(context: Context): AppAccountContext? {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val userId = prefs.getString(USER_ID, null)?.trim().orEmpty()
@@ -60,11 +61,7 @@ internal object AccountContextStore {
 
         val shopId = prefs.getLong(SHOP_ID, -1L).takeIf { it > 0L }
         val role = AccountRole.from(prefs.getString(ROLE, null))
-        val shopName = shopId?.let {
-            runCatching { Database(context.applicationContext).use { db ->
-                db.getShops().firstOrNull { shop -> shop.id == it }?.name.orEmpty()
-            } }.getOrDefault("")
-        }.orEmpty()
+        val shopName = prefs.getString(SHOP_NAME, "").orEmpty()
 
         return AppAccountContext(
             userId = userId,
@@ -115,9 +112,8 @@ internal object AccountContextStore {
         val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val savedShopId = prefs.getLong(SHOP_ID, -1L).takeIf { it > 0L }
         val selected = if (accountRole == AccountRole.ASSISTANT) {
-            // An assistant account does not own the tailor's shop. Its access is
-            // granted through the approved assistant-link RPCs, not by selecting
-            // an owner shop from the local SQLite database.
+            // Assistant access is granted through assistant-link flows, not by
+            // selecting an owner shop from the local tailor database.
             null
         } else {
             shops.firstOrNull { it.id == savedShopId }
