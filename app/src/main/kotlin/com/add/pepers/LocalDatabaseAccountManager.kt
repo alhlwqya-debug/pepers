@@ -198,16 +198,32 @@ internal object LocalDatabaseAccountManager {
         }
     }
 
+    /**
+     * Create a real SQLite file, not just a SQLiteOpenHelper instance.
+     * SQLiteOpenHelper.close() does not open/create the database by itself.
+     * The previous implementation therefore treated a valid empty account
+     * database as a failure when WorkManager activated a new user.
+     */
     private fun createEmptyDatabase(context: Context, target: File) {
         target.parentFile?.mkdirs()
         val database = Database(context)
-        database.close()
+        try {
+            database.writableDatabase
+        } finally {
+            database.close()
+        }
 
         val active = context.getDatabasePath(DATABASE_NAME)
-        if (!active.exists()) throw IllegalStateException("تعذر إنشاء قاعدة البيانات المحلية")
+        if (!active.exists() || active.length() == 0L) {
+            throw IllegalStateException("تعذر إنشاء قاعدة البيانات المحلية")
+        }
 
         checkpointDatabase(active)
         copyDatabase(active, target)
+
+        if (!target.exists() || target.length() == 0L) {
+            throw IllegalStateException("تعذر حفظ قاعدة البيانات المحلية للحساب")
+        }
     }
 
     private fun checkpointDatabase(file: File) {
