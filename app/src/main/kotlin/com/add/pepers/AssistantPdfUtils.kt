@@ -67,7 +67,7 @@ internal fun shareAssistantLedgerPdf(
             .status-work { color:#2e8b57; font-weight:bold; }
             .status-absent { color:#c84646; font-weight:bold; }
             .status-no-work { color:#77707f; font-weight:bold; }
-            .empty { color:#77707f; text-align:center; padding:10px; border:1px dashed #d9d2df; border-radius:8px; }
+            .empty { color:#77707f; text-align:center; padding:10px; }
             .footer { margin-top:18px; padding-top:8px; border-top:1px solid #ddd6e2; color:#77707f; font-size:8px; text-align:center; }
             .signatures { width:100%; margin-top:28px; border-collapse:collapse; }
             .signatures td { width:50%; text-align:center; padding:18px 8px 4px; border:0; color:#77707f; }
@@ -112,7 +112,7 @@ internal fun shareAssistantLedgerPdf(
                 }
                 val dayEarned = database.calculateAssistantDayEarned(assistant, bundle, day)
                 val dayExpense = daily?.expense ?: 0
-                val dayPieces = daily?.piecesCount ?: if (dayEarned > 0) day.quantities.values.sum() else 0
+                val dayPieces = daily?.reportedQuantity ?: if (dayEarned > 0) day.quantities.values.sum() else 0
                 if (dayEarned > 0 || dayExpense > 0 || daily != null) {
                     dailyRows++
                     append("<tr><td>${esc(day.date)}</td><td class='$statusClass'>$status</td><td>${money(dayPieces)}</td><td>${money(dayEarned)}</td><td>${money(dayExpense)}</td><td>${esc(daily?.notes.orEmpty())}</td></tr>")
